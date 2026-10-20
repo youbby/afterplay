@@ -13,3 +13,5 @@ artifacts/
 .android-home/
 .android-avd/
 .device-backups/
+.signing/
+app/release/

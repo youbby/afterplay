@@ -120,3 +120,16 @@ Android 16 / API 36 에뮬레이터에서 `PlaybackRecoveryTest` 5개와 기존 
 새 APK는 기존 1.2.0과 서명 인증서가 동일하며 versionCode는 4입니다. 기존 앱 위에 업데이트 설치할 수 있습니다.
 
 1.2.1 APK SHA-256: 8019a79dd3fa4902ab4d4190ab1955cabc20a1b256a2a5f8fee9344f73d8c881.
+
+## 기존 배포 키를 사용하는 로컬 Release 빌드
+
+검증일: 2026-10-21 (Asia/Seoul)
+
+- `configure-signing.ps1`: 로컬 비밀번호 입력창에서 받은 비밀번호를 Windows DPAPI로 암호화하여 `.signing/release.clixml`에 저장합니다. 키와 비밀번호는 Git에서 제외합니다.
+- `build-apk.ps1 -Release -Test`: Release 컴파일, 단위 테스트, Lint, zipalign, apksigner 서명 및 기존 배포 인증서 일치 여부 검증을 수행합니다. 비밀번호는 서명 도구의 일시적인 환경 변수로 전달하고 종료 시 정리합니다.
+- Android Studio가 변경한 Gradle 배포 URL을 프로젝트의 검증된 8.14.3 및 기존 SHA-256과 일치하도록 복원했습니다. 로컬 SDK 경로도 유효한 properties 표기로 수정했습니다.
+- 최종 결과: `signed-apk-build.log`에서 BUILD SUCCESSFUL. 단위 테스트 13개 통과, 선택적 YouTube 네트워크 테스트 1개 건너뜀. Lint 오류 0개.
+- 생성 파일: `artifacts/AfterPlay-1.2.1-release.apk`. 기존 Android Studio 배포 APK와 동일한 서명 인증서 SHA-256(`6a41d26bde88baf8aefad32459253010785e424ece326227e20a726f19c87f83`) 확인.
+- APK SHA-256: `268dd1a8d07f25ff64f01e73d8d55d403f355a1e048c6b03a7807c8156a5916e`.
+
+이번 작업은 빌드 및 서명 절차 설정이며 앱의 기능과 버전(1.2.1 / versionCode 4)은 변경하지 않았습니다. 해당 Release APK의 휴대폰 설치·재생 검증은 이번 작업에서 수행하지 않았습니다.

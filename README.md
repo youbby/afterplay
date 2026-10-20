@@ -46,6 +46,17 @@ Android Studio의 기본 JDK 및 SDK 경로는 스크립트가 자동으로 찾�
 
 설치 파일은 `artifacts/AfterPlay-1.2.1-debug.apk`와 `app/build/outputs/apk/debug/app-debug.apk`에 생성됩니다. 개인 설치용 debug 서명을 사용합니다. 동일한 기기에 업데이트하려면 동일한 개발용 서명 키로 빌드해야 합니다. 스토어 제출용 서명은 포함하지 않습니다.
 
+공개 배포용 APK는 기존 배포 키를 한 번 등록한 뒤 여기서 빌드할 수 있습니다. Windows PowerShell에서 다음을 실행하면 비밀번호 입력창이 열립니다. 키 비밀번호가 저장소 비밀번호와 같으면 두 번째 칸은 비워 둡니다.
+
+```powershell
+.\configure-signing.ps1 -KeystorePath 'C:\project\keys\afterplay-release.jks' -KeyAlias 'afterplay'
+.\build-apk.ps1 -Release -Test
+```
+
+비밀번호는 Windows DPAPI로 암호화한 `.signing/release.clixml`에 저장하며 같은 PC의 같은 Windows 계정에서만 복호화할 수 있습니다. `.signing/`, 키 파일, Android Studio의 `app/release/` 출력은 Git에서 제외합니다. 키 파일과 비밀번호는 별도로 백업해야 하며, 다른 PC나 Windows 계정에서는 등록 명령을 다시 실행합니다.
+
+`-Release` 빌드는 정렬과 서명을 수행하고 기존 공개 버전의 서명 인증서와 같은지 확인한 뒤 `artifacts/AfterPlay-<버전>-release.apk`를 생성합니다. 서명이나 인증서 확인에 실패하면 배포 폴더로 복사하지 않습니다. 다음 버전은 `app/build.gradle.kts`의 `versionName`과 `versionCode`를 올리고 같은 키로 빌드합니다.
+
 ## 검증
 
 ```powershell
