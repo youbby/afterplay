@@ -39,7 +39,7 @@ private val Surface = Color(0xFF1C2119)
 private val Muted = Color(0xFFA5AD9C)
 
 @Composable
-fun AfterPlayScreen(model: PlayerViewModel) {
+fun AfterPlayScreen(model: PlayerViewModel, onAddQuickSettingsTile: () -> Unit = {}) {
     val lists by model.playlists.collectAsStateWithLifecycle()
     val selectedId by model.selectedId.collectAsStateWithLifecycle()
     val loading by model.loadingLibrary.collectAsStateWithLifecycle()
@@ -202,9 +202,13 @@ fun AfterPlayScreen(model: PlayerViewModel) {
             title = { Text("이어듣기 · AFTERPLAY") },
             text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("화면을 끄거나 다른 앱으로 이동해도 오디오가 재생됩니다. 알림과 잠금화면에서 재생을 제어할 수 있어요.")
+                TextButton(onClick = { showAbout = false; onAddQuickSettingsTile() }) {
+                    Icon(Icons.Rounded.Add, null, Modifier.size(18.dp))
+                    Text("퀵 설정에 실행 버튼 추가")
+                }
                 Text("인터넷 연결이 필요합니다. 공개된 일반 영상만 지원하며, 비공개·유료·로그인 필요 영상과 실시간 방송은 지원하지 않습니다.", fontSize = 12.sp, color = Muted)
                 Text("YouTube 공식 앱이 아닙니다. 유튜브 변경에 따라 재생이 중단될 수 있습니다.", fontSize = 12.sp, color = Muted)
-                Text("오픈소스: NewPipe Extractor (GPL-3.0-or-later), AndroidX Media3 / Compose, OkHttp, Coil (Apache-2.0).\n앱 소스: GPL-3.0-or-later · 버전 1.2.0", fontSize = 11.sp, color = Muted)
+                Text("오픈소스: NewPipe Extractor (GPL-3.0-or-later), AndroidX Media3 / Compose, OkHttp, Coil (Apache-2.0).\n앱 소스: GPL-3.0-or-later · 버전 1.2.2", fontSize = 11.sp, color = Muted)
             } }, confirmButton = { TextButton(onClick = { showAbout = false }) { Text("확인") } })
     }
 }

@@ -16,7 +16,9 @@ import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.afterplay.app.AfterPlayApp
@@ -41,7 +43,7 @@ class PlaybackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         val repository = (application as AfterPlayApp).youtube
-        val http = OkHttpDataSource.Factory(repository.client).setUserAgent(USER_AGENT)
+        val http = OkHttpDataSource.Factory(repository.playbackClient).setUserAgent(USER_AGENT)
         val resolving = ResolvingDataSource.Factory(http) { spec ->
             if (spec.uri.scheme != "youtube") spec else {
                 val id = spec.uri.host ?: throw IOException("영상 주소가 올바르지 않습니다.")
@@ -55,6 +57,13 @@ class PlaybackService : MediaSessionService() {
             }
         }
         val player = ExoPlayer.Builder(this)
+            .setTrackSelector(DefaultTrackSelector(this).apply {
+                setParameters(buildUponParameters().setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, true))
+            })
+            .setLoadControl(DefaultLoadControl.Builder()
+                .setBufferDurationsMs(60_000, 120_000, 2_500, 5_000)
+                .setPrioritizeTimeOverSizeThresholds(true)
+                .build())
             .setMediaSourceFactory(DefaultMediaSourceFactory(DefaultDataSource.Factory(this, resolving))
                 .setLoadErrorHandlingPolicy(PlaybackLoadErrorPolicy()))
             .setAudioAttributes(AudioAttributes.Builder()

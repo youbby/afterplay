@@ -1,0 +1,5 @@
+<resources>
+    <string name="quick_settings_label">이어듣기</string>
+    <string name="quick_settings_open">앱 열기</string>
+    <string name="quick_settings_manual">상단을 두 번 내려 퀵 설정의 편집에서 ‘이어듣기’ 버튼을 추가해 주세요.</string>
+</resources>

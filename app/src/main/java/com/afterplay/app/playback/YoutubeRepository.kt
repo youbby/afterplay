@@ -21,6 +21,10 @@ class YoutubeRepository {
         .callTimeout(45, TimeUnit.SECONDS)
         .build()
 
+    // Audio response bodies stay open while the player buffers or waits for more data.
+    // A whole-call deadline would cancel healthy playback, including time spent paused.
+    val playbackClient: OkHttpClient = client.forAudioPlayback()
+
     init { NewPipe.init(HttpDownloader(client), Localization("ko", "KR")) }
 
     data class Resolved(val track: Track, val audioUrl: String, val cachedAt: Long)
@@ -69,3 +73,7 @@ private class HttpDownloader(private val client: OkHttpClient) : Downloader() {
 }
 
 const val USER_AGENT = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
+
+internal fun OkHttpClient.forAudioPlayback(): OkHttpClient = newBuilder()
+    .callTimeout(0, TimeUnit.MILLISECONDS)
+    .build()

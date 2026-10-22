@@ -133,3 +133,33 @@ Android 16 / API 36 에뮬레이터에서 `PlaybackRecoveryTest` 5개와 기존 
 - APK SHA-256: `268dd1a8d07f25ff64f01e73d8d55d403f355a1e048c6b03a7807c8156a5916e`.
 
 이번 작업은 빌드 및 서명 절차 설정이며 앱의 기능과 버전(1.2.1 / versionCode 4)은 변경하지 않았습니다. 해당 Release APK의 휴대폰 설치·재생 검증은 이번 작업에서 수행하지 않았습니다.
+
+## 1.2.2 스트리밍 안정화 / 공유 창 재사용 / 퀵 설정
+
+검증일: 2026-10-22 (Asia/Seoul)
+
+- 기존에도 `StreamInfo.audioStreams`에서 오디오 전용 주소만 선택했습니다. 영상 스트림은 요청하지 않으며, 영상 트랙 선택도 명시적으로 비활성화했습니다. 한국어/원본 음성 우선순위와 오디오 음질은 유지합니다.
+- 메타데이터 조회와 재생이 공유하던 HTTP 클라이언트를 용도별로 분리했습니다. 재생에서는 응답 본문을 읽는 시간까지 포함하던 45초 전체 요청 제한을 제거했습니다. 접속 15초/읽기 25초 제한과 기존 재접속 정책은 유지합니다.
+- 재생 버퍼는 최소 60초, 최대 120초이며 최초 시작은 2.5초, 재버퍼링 후 재개는 5초입니다. 느린 응답이 메타데이터 요청 제한을 넘겨도 오디오를 끝까지 읽는 로컬 HTTP 회귀 테스트를 추가했습니다.
+- `MainActivity`를 `singleTask`/`documentLaunchMode="never"`로 설정해 공유 시 기존 창의 `onNewIntent`로 링크를 전달합니다.
+- 퀵 설정에 앱 실행용 이어듣기 타일을 추가했습니다. 앱 정보 → **퀵 설정에 실행 버튼 추가**에서 Android 13 이상은 시스템 추가 창을 요청하며, 이전 버전은 수동 추가 방법을 안내합니다. 타일 실행은 Android 14 이상에서 PendingIntent, 이전 버전에서 Intent를 사용합니다.
+- 앱 버전: 1.2.2 / versionCode 5.
+
+`artifacts/quick-settings-final-build.log`: `assembleDebug`, `assembleDebugAndroidTest`, `testDebugUnitTest`, `lintDebug` 성공. 단위 테스트 14개 통과, 선택적 YouTube 네트워크 테스트 1개 건너뜀. Lint 오류 0개, 기존 경고 18개.
+
+Android 16 / API 36 에뮬레이터에서 재생/복구 테스트 6개 통과(`artifacts/quick-settings-device-tests.log`). 공유/타일 테스트는 실행 Intent가 바뀌면 ActivityScenario의 생명주기 추적이 어긋나는 문제를 실제 액티비티 관찰 방식으로 수정한 뒤 2개 모두 통과했습니다(`artifacts/quick-settings-reuse-tests.log`: **OK (2 tests)**). 최종 테스트 APK 재빌드와 Lint도 성공했습니다(`artifacts/quick-settings-test-fix-build.log`).
+
+공유 테스트는 새 태스크/새 문서/다중 태스크 플래그를 모두 붙인 공유를 두 번 보내도 기존 액티비티 객체가 링크를 수신하고 유일한 활성 앱 창으로 유지되는지 확인합니다. 타일 테스트는 시스템에 실제 타일을 등록하고 클릭해 기존 창이 다시 열리는지 확인합니다. 테스트에서 등록한 타일은 종료 시 제거했습니다.
+
+기존에 수정되어 있던 Gradle wrapper 설정은 보존하고, 로컬에 설치된 Gradle 8.14.3으로 검증했습니다. 실제 DeX, Android 8~15 기기, 실제 YouTube 장시간 재생은 이번 검증에서 실행하지 않았습니다.
+
+테스트 APK: `artifacts/AfterPlay-1.2.2-debug.apk`.
+SHA-256: `982c25056170cb0369b0ad7105f36c90eea328b51e05884747438750c01846d9`.
+
+### 1.2.2 공개 릴리즈 빌드
+
+- `build-apk.ps1 -Release -Test`로 Release APK 빌드, 단위 테스트, Lint, 정렬 및 서명 검증을 완료했습니다(`artifacts/release-1.2.2-build.log`). 단위 테스트 14개 통과, 선택적 네트워크 테스트 1개 건너뜀. Lint 오류 0개, 경고 19개.
+- 빌드 중에만 wrapper를 커밋된 Gradle 8.14.3 설정으로 사용한 뒤, 기존 로컬 수정 내용을 원래 바이트 그대로 복원했습니다. 해당 로컬 설정 변경은 릴리즈 커밋에서 제외합니다.
+- 배포 APK: `artifacts/AfterPlay-1.2.2-release.apk`. 기존 배포 인증서 SHA-256(`6a41d26bde88baf8aefad32459253010785e424ece326227e20a726f19c87f83`)와 일치합니다.
+- APK SHA-256: `09a5c0ecce34fbc51c0958bfeb9eae72f5e78f105715fe355d13495c9e1e6f13`.
+- Release APK의 실제 휴대폰 업데이트 설치는 이번 검증에서 실행하지 않았습니다.
