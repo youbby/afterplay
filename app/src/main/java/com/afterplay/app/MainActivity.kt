@@ -17,12 +17,14 @@ class MainActivity : ComponentActivity() {
     private val model: PlayerViewModel by viewModels()
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
-            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
-        )
+        updateSystemBars(model.theme.value.dark)
         if (savedInstanceState == null) acceptShare(intent)
-        setContent { AfterPlayScreen(model, onAddQuickSettingsTile = ::requestQuickSettingsTile) }
+        setContent { AfterPlayScreen(model, onAddQuickSettingsTile = ::requestQuickSettingsTile, onThemeChanged = ::updateSystemBars) }
+    }
+    private fun updateSystemBars(dark: Boolean) {
+        val style = if (dark) SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+            else SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
+        enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
     }
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)

@@ -1,5 +1,6 @@
 package com.afterplay.app.ui
 
+import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -20,6 +21,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -33,17 +35,15 @@ import com.afterplay.app.data.Playlist
 import com.afterplay.app.data.Track
 import java.util.Locale
 
-private val Lime = Color(0xFFD2F580)
-private val Background = Color(0xFF10130F)
-private val Surface = Color(0xFF1C2119)
-private val Muted = Color(0xFFA5AD9C)
-
 @Composable
-fun AfterPlayScreen(model: PlayerViewModel, onAddQuickSettingsTile: () -> Unit = {}) {
+fun AfterPlayScreen(model: PlayerViewModel, onAddQuickSettingsTile: () -> Unit = {}, onThemeChanged: (Boolean) -> Unit = {}) {
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val lists by model.playlists.collectAsStateWithLifecycle()
     val selectedId by model.selectedId.collectAsStateWithLifecycle()
     val loading by model.loadingLibrary.collectAsStateWithLifecycle()
     val playback by model.playback.collectAsStateWithLifecycle()
+    val theme by model.theme.collectAsStateWithLifecycle()
+    var settingsTab by rememberSaveable { mutableStateOf<Int?>(null) }
     val message by model.message.collectAsStateWithLifecycle()
     val sharedLink by model.sharedLink.collectAsStateWithLifecycle()
     val adding by model.adding.collectAsStateWithLifecycle()
@@ -65,23 +65,20 @@ fun AfterPlayScreen(model: PlayerViewModel, onAddQuickSettingsTile: () -> Unit =
             model.sharedLink.value = null; model.addError.value = null
         }
     }
-    MaterialTheme(colorScheme = darkColorScheme(
-        primary = Lime, onPrimary = Background, background = Background,
-        surface = Surface, onSurface = Color(0xFFF3F5ED), surfaceVariant = Color(0xFF2B3226),
-        onSurfaceVariant = Muted, secondary = Lime,
-    )) {
-        Scaffold(containerColor = Background, snackbarHost = { SnackbarHost(snackbar) },
-            bottomBar = { PlayerPanel(playback, model) }) { padding ->
-            LazyColumn(Modifier.fillMaxSize().padding(padding),
+    LaunchedEffect(theme.dark) { onThemeChanged(theme.dark) }
+    AfterPlayTheme(theme) {
+        val libraryContent: @Composable () -> Unit = {
+            LazyColumn(Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp)) {
                 item {
                     Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.GraphicEq, null, tint = Lime, modifier = Modifier.size(30.dp))
+                        Icon(Icons.Rounded.GraphicEq, null, tint = Accent, modifier = Modifier.size(30.dp))
                         Spacer(Modifier.width(10.dp))
                         Text("이어듣기", fontWeight = FontWeight.Bold, fontSize = 21.sp)
                         Spacer(Modifier.weight(1f))
                         Text("AFTERPLAY", fontSize = 10.sp, letterSpacing = 2.sp, color = Muted)
+                        IconButton(onClick = { settingsTab = 0 }) { Icon(Icons.Rounded.Palette, "앱 설정", tint = Muted) }
                         IconButton(onClick = { showAbout = true }) { Icon(Icons.Rounded.Info, "앱 정보", tint = Muted) }
                     }
                 }
@@ -148,6 +145,14 @@ fun AfterPlayScreen(model: PlayerViewModel, onAddQuickSettingsTile: () -> Unit =
                 }
             }
         }
+        Scaffold(containerColor = Background, snackbarHost = { SnackbarHost(snackbar) },
+            bottomBar = { if (!landscape) PlayerPanel(playback, model) }) { padding ->
+            Box(Modifier.fillMaxSize().padding(padding)) {
+                if (landscape) LandscapeWorkspace(playback, model, selected, libraryContent, onSettings = { settingsTab = it })
+                else libraryContent()
+            }
+        }
+        settingsTab?.let { tab -> AppSettingsDialog(model, theme, tab) { settingsTab = null } }
         if (newList) NameDialog("새 재생목록", "", { newList = false }) { model.createPlaylist(it); newList = false }
         rename?.let { list -> NameDialog("이름 변경", list.name, { rename = null }) { model.renamePlaylist(list.id, it); rename = null } }
         delete?.let { list ->
@@ -208,7 +213,7 @@ fun AfterPlayScreen(model: PlayerViewModel, onAddQuickSettingsTile: () -> Unit =
                 }
                 Text("인터넷 연결이 필요합니다. 공개된 일반 영상만 지원하며, 비공개·유료·로그인 필요 영상과 실시간 방송은 지원하지 않습니다.", fontSize = 12.sp, color = Muted)
                 Text("YouTube 공식 앱이 아닙니다. 유튜브 변경에 따라 재생이 중단될 수 있습니다.", fontSize = 12.sp, color = Muted)
-                Text("오픈소스: NewPipe Extractor (GPL-3.0-or-later), AndroidX Media3 / Compose, OkHttp, Coil (Apache-2.0).\n앱 소스: GPL-3.0-or-later · 버전 1.2.2", fontSize = 11.sp, color = Muted)
+                Text("오픈소스: NewPipe Extractor (GPL-3.0-or-later), AndroidX Media3 / Compose, OkHttp, Coil (Apache-2.0).\n앱 소스: GPL-3.0-or-later · 버전 1.4.0", fontSize = 11.sp, color = Muted)
             } }, confirmButton = { TextButton(onClick = { showAbout = false }) { Text("확인") } })
     }
 }
@@ -218,7 +223,7 @@ private fun EmptyState(title: String, subtitle: String) {
     Column(Modifier.fillMaxWidth().padding(vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Box(Modifier.size(60.dp).background(Surface, CircleShape), contentAlignment = Alignment.Center) {
-            Icon(Icons.Rounded.LibraryMusic, null, tint = Lime, modifier = Modifier.size(28.dp))
+            Icon(Icons.Rounded.LibraryMusic, null, tint = Accent, modifier = Modifier.size(28.dp))
         }
         Text(title, fontSize = 15.sp, fontWeight = FontWeight.Medium)
         Text(subtitle, fontSize = 12.sp, color = Muted, lineHeight = 20.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
@@ -232,7 +237,7 @@ private fun TrackRow(track: Track, index: Int, size: Int, active: Boolean, onPla
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Artwork(track.artwork, Modifier.size(56.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(track.title, maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = 14.sp, color = if (active) Lime else Color(0xFFF3F5ED))
+            Text(track.title, maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = 14.sp, color = if (active) Accent else MaterialTheme.colorScheme.onSurface)
             Text("${track.artist} · ${clockTime(track.durationSeconds * 1000)}", maxLines = 1, overflow = TextOverflow.Ellipsis, color = Muted, fontSize = 11.sp)
         }
         Box {
@@ -248,9 +253,9 @@ private fun TrackRow(track: Track, index: Int, size: Int, active: Boolean, onPla
 }
 
 @Composable
-private fun Artwork(url: String, modifier: Modifier = Modifier) {
-    Box(modifier.clip(RoundedCornerShape(12.dp)).background(Color(0xFF323D29)), contentAlignment = Alignment.Center) {
-        Icon(Icons.Rounded.MusicNote, null, tint = Lime)
+internal fun Artwork(url: String, modifier: Modifier = Modifier) {
+    Box(modifier.clip(RoundedCornerShape(12.dp)).background(LocalPalette.current.artwork), contentAlignment = Alignment.Center) {
+        Icon(Icons.Rounded.MusicNote, null, tint = LocalPalette.current.onArtwork)
         if (url.isNotEmpty()) AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
     }
 }
@@ -264,13 +269,13 @@ private fun PlayerPanel(state: PlaybackUi, model: PlayerViewModel) {
                 TextButton(onClick = { showSleepTimer = true }, enabled = state.connected,
                     contentPadding = PaddingValues(horizontal = 0.dp)) {
                     Icon(Icons.Rounded.Bedtime, "수면 모드 설정", Modifier.size(18.dp),
-                        tint = if (state.sleepTimerActive) Lime else Muted)
+                        tint = if (state.sleepTimerActive) Accent else Muted)
                     Spacer(Modifier.width(6.dp))
-                    Text("수면 모드", color = if (state.sleepTimerActive) Lime else Muted, fontSize = 12.sp)
+                    Text("수면 모드", color = if (state.sleepTimerActive) Accent else Muted, fontSize = 12.sp)
                 }
                 Spacer(Modifier.weight(1f))
                 if (state.sleepTimerActive) {
-                    Text("${clockTime(state.sleepRemainingMs + 999)} 후 종료", color = Lime, fontSize = 12.sp)
+                    Text("${clockTime(state.sleepRemainingMs + 999)} 후 종료", color = Accent, fontSize = 12.sp)
                     IconButton(onClick = model::cancelSleepTimer, modifier = Modifier.size(36.dp)) {
                         Icon(Icons.Rounded.Close, "수면 타이머 해제", tint = Muted, modifier = Modifier.size(18.dp))
                     }
@@ -311,7 +316,12 @@ private fun PlayerPanel(state: PlaybackUi, model: PlayerViewModel) {
             }
         }
     }
-    if (showSleepTimer) AlertDialog(onDismissRequest = { showSleepTimer = false },
+    if (showSleepTimer) SleepTimerDialog(state, model) { showSleepTimer = false }
+}
+
+@Composable
+internal fun SleepTimerDialog(state: PlaybackUi, model: PlayerViewModel, dismiss: () -> Unit) {
+    AlertDialog(onDismissRequest = dismiss,
         title = { Text("수면 모드") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -319,25 +329,25 @@ private fun PlayerPanel(state: PlaybackUi, model: PlayerViewModel) {
                 for (minutes in listOf(20, 40, 60)) {
                     OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = {
                         model.setSleepTimer(minutes)
-                        showSleepTimer = false
+                        dismiss()
                     }) { Text("${minutes}분") }
                 }
                 if (state.sleepTimerActive) Text("남은 시간 ${clockTime(state.sleepRemainingMs + 999)}",
-                    color = Lime, fontSize = 12.sp)
+                    color = Accent, fontSize = 12.sp)
             }
         },
-        confirmButton = { TextButton(onClick = { showSleepTimer = false }) { Text("닫기") } },
+        confirmButton = { TextButton(onClick = dismiss) { Text("닫기") } },
         dismissButton = {
             if (state.sleepTimerActive) TextButton(onClick = {
-                model.cancelSleepTimer(); showSleepTimer = false
+                model.cancelSleepTimer(); dismiss()
             }) { Text("타이머 해제") }
         })
 }
 
 @Composable
-private fun Control(icon: ImageVector, description: String, action: () -> Unit, active: Boolean = false, enabled: Boolean = true) {
+internal fun Control(icon: ImageVector, description: String, action: () -> Unit, active: Boolean = false, enabled: Boolean = true) {
     IconButton(onClick = action, enabled = enabled) {
-        Icon(icon, description, tint = if (!enabled) Muted.copy(alpha = .3f) else if (active) Lime else Muted)
+        Icon(icon, description, tint = if (!enabled) Muted.copy(alpha = .3f) else if (active) Accent else Muted)
     }
 }
 

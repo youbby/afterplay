@@ -11,6 +11,8 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.afterplay.app.data.Playlist
 import com.afterplay.app.data.Track
+import com.afterplay.app.data.PomodoroConfig
+import com.afterplay.app.data.ThemePreset
 import com.afterplay.app.data.YoutubeLink
 import com.afterplay.app.data.add
 import com.afterplay.app.data.move
@@ -58,6 +60,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     val sharedLink = MutableStateFlow<String?>(null)
     private val _playback = MutableStateFlow(PlaybackUi())
     val playback = _playback.asStateFlow()
+    val pomodoro = app.pomodoro.state
+    val theme = app.appearance.state
+    fun setTheme(preset: ThemePreset) = app.appearance.select(preset)
+    fun configurePomodoro(config: PomodoroConfig) = app.pomodoro.configure(config)
+    fun togglePomodoro() = app.pomodoro.toggle()
+    fun resetPomodoro() = app.pomodoro.reset()
+    fun skipPomodoro() = app.pomodoro.skip()
+    fun refreshPomodoro() = app.pomodoro.refresh()
     private var controller: MediaController? = null
     private val controllerFuture = MediaController.Builder(application,
         SessionToken(application, ComponentName(application, PlaybackService::class.java))).buildAsync()

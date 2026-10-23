@@ -35,6 +35,9 @@ class PlaybackSmokeTest {
         val controller = future.get(10, TimeUnit.SECONDS)
         try {
             instrumentation.runOnMainSync {
+                // This test verifies ordered auto-advance, independently of persisted user modes.
+                controller.repeatMode = Player.REPEAT_MODE_OFF
+                controller.shuffleModeEnabled = false
                 controller.setMediaItems(listOf(MediaItem.fromUri(file.toURI().toString()), MediaItem.fromUri(file.toURI().toString())))
                 controller.prepare(); controller.play()
             }
