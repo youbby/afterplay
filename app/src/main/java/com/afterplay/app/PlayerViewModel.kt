@@ -61,12 +61,24 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val _playback = MutableStateFlow(PlaybackUi())
     val playback = _playback.asStateFlow()
     val pomodoro = app.pomodoro.state
+    val pomodoroNotice = app.pomodoro.notice
+    val focusLocked = app.focusGuard.locked
+    val needsScreenLock = MutableStateFlow(false)
     val theme = app.appearance.state
     fun setTheme(preset: ThemePreset) = app.appearance.select(preset)
-    fun configurePomodoro(config: PomodoroConfig) = app.pomodoro.configure(config)
-    fun togglePomodoro() = app.pomodoro.toggle()
-    fun resetPomodoro() = app.pomodoro.reset()
-    fun skipPomodoro() = app.pomodoro.skip()
+    fun configurePomodoro(config: PomodoroConfig) { if (!focusLocked.value) app.pomodoro.configure(config) }
+    fun togglePomodoro() {
+        if (focusLocked.value) return
+        if (!pomodoro.value.running && !lockFocus()) return
+        app.pomodoro.toggle()
+    }
+    fun lockFocus(): Boolean {
+        if (app.focusGuard.lock()) return true
+        needsScreenLock.value = true
+        return false
+    }
+    fun resetPomodoro() { if (!focusLocked.value) app.pomodoro.reset() }
+    fun skipPomodoro() { if (!focusLocked.value) app.pomodoro.skip() }
     fun refreshPomodoro() = app.pomodoro.refresh()
     private var controller: MediaController? = null
     private val controllerFuture = MediaController.Builder(application,

@@ -37,9 +37,16 @@ class AppSettingsTest {
     @Before fun defaults() { restoreDefaults() }
     @After fun restoreDefaults() {
         instrumentation.runOnMainSync {
+            app.focusGuard.unlockAfterAuthentication()
             app.pomodoro.configure(PomodoroConfig())
             app.appearance.select(ThemePreset.BURGUNDY)
         }
+    }
+
+    private fun togglePomodoro() {
+        compose.onNodeWithTag("pomodoro_toggle").performClick()
+        instrumentation.runOnMainSync { app.focusGuard.unlockAfterAuthentication() }
+        compose.waitForIdle()
     }
 
     @Test fun durationSettingsValidatePersistAndResetCurrentTimer() {
@@ -53,7 +60,7 @@ class AppSettingsTest {
         compose.onNodeWithTag("long_break_minutes").performImeAction()
         compose.onNodeWithText("시간 저장").performClick()
         compose.onNodeWithTag("pomodoro_remaining").assertTextEquals("40:00")
-        compose.onNodeWithTag("pomodoro_toggle").performClick()
+        togglePomodoro()
         assertTrue(app.pomodoro.state.value.running)
         compose.onNodeWithContentDescription("뽀모도로 시간 설정").performClick()
         compose.onNodeWithTag("focus_minutes").performTextReplacement("50")
@@ -89,7 +96,7 @@ class AppSettingsTest {
             compose.waitUntil(10_000) {
                 compose.onAllNodesWithText("차분한 피아노와 함께하는 집중 시간").fetchSemanticsNodes().isNotEmpty()
             }
-            compose.onNodeWithTag("pomodoro_toggle").performClick()
+            togglePomodoro()
             val deadline = app.pomodoro.state.value.deadlineMs
             for (preset in ThemePreset.entries) {
                 compose.onNodeWithContentDescription("앱 설정").performClick()
@@ -105,6 +112,7 @@ class AppSettingsTest {
             compose.activityRule.scenario.recreate()
             assertEquals(ThemePreset.SLATE, app.appearance.state.value)
             assertEquals(deadline, app.pomodoro.state.value.deadlineMs)
+            togglePomodoro()
             compose.activityRule.scenario.onActivity { it.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT }
             compose.waitUntil(10_000) { compose.onAllNodesWithTag("landscape_workspace").fetchSemanticsNodes().isEmpty() }
             compose.onNodeWithText("내 재생목록").assertIsDisplayed()

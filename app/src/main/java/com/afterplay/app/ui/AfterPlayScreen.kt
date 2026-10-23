@@ -22,11 +22,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.media3.common.Player
 import coil.compose.AsyncImage
 import com.afterplay.app.PlaybackUi
@@ -36,13 +38,30 @@ import com.afterplay.app.data.Track
 import java.util.Locale
 
 @Composable
-fun AfterPlayScreen(model: PlayerViewModel, onAddQuickSettingsTile: () -> Unit = {}, onThemeChanged: (Boolean) -> Unit = {}) {
-    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+fun AfterPlayScreen(model: PlayerViewModel, onAddQuickSettingsTile: () -> Unit = {}, onThemeChanged: (Boolean) -> Unit = {},
+    onUnlockFocus: () -> Unit = {}, onSetScreenLock: () -> Unit = {}) {
+    val configuration = LocalConfiguration.current
+    val landscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val workspace = landscape || configuration.screenWidthDp >= 600
     val lists by model.playlists.collectAsStateWithLifecycle()
     val selectedId by model.selectedId.collectAsStateWithLifecycle()
     val loading by model.loadingLibrary.collectAsStateWithLifecycle()
     val playback by model.playback.collectAsStateWithLifecycle()
     val theme by model.theme.collectAsStateWithLifecycle()
+    val timer by model.pomodoro.collectAsStateWithLifecycle()
+    val focusLocked by model.focusLocked.collectAsStateWithLifecycle()
+    val needsScreenLock by model.needsScreenLock.collectAsStateWithLifecycle()
+    val view = LocalView.current
+    val keepScreenOn = timer.running
+    DisposableEffect(view, keepScreenOn) {
+        val previous = view.keepScreenOn
+        view.keepScreenOn = keepScreenOn
+        onDispose { view.keepScreenOn = previous }
+    }
+    LifecycleResumeEffect(model) {
+        model.refreshPomodoro()
+        onPauseOrDispose { }
+    }
     var settingsTab by rememberSaveable { mutableStateOf<Int?>(null) }
     val message by model.message.collectAsStateWithLifecycle()
     val sharedLink by model.sharedLink.collectAsStateWithLifecycle()
@@ -145,13 +164,18 @@ fun AfterPlayScreen(model: PlayerViewModel, onAddQuickSettingsTile: () -> Unit =
                 }
             }
         }
+        FocusTouchGuard(focusLocked, onUnlockFocus) {
         Scaffold(containerColor = Background, snackbarHost = { SnackbarHost(snackbar) },
-            bottomBar = { if (!landscape) PlayerPanel(playback, model) }) { padding ->
+            bottomBar = { if (!workspace && !focusLocked) PlayerPanel(playback, model) }) { padding ->
             Box(Modifier.fillMaxSize().padding(padding)) {
-                if (landscape) LandscapeWorkspace(playback, model, selected, libraryContent, onSettings = { settingsTab = it })
+                if (workspace) LandscapeWorkspace(playback, model, selected, libraryContent,
+                    onSettings = { settingsTab = it })
+                else if (focusLocked) ClockAndPomodoro(model, onSettings = { settingsTab = 1 })
                 else libraryContent()
             }
         }
+        }
+        if (!focusLocked) {
         settingsTab?.let { tab -> AppSettingsDialog(model, theme, tab) { settingsTab = null } }
         if (newList) NameDialog("새 재생목록", "", { newList = false }) { model.createPlaylist(it); newList = false }
         rename?.let { list -> NameDialog("이름 변경", list.name, { rename = null }) { model.renamePlaylist(list.id, it); rename = null } }
@@ -213,8 +237,16 @@ fun AfterPlayScreen(model: PlayerViewModel, onAddQuickSettingsTile: () -> Unit =
                 }
                 Text("인터넷 연결이 필요합니다. 공개된 일반 영상만 지원하며, 비공개·유료·로그인 필요 영상과 실시간 방송은 지원하지 않습니다.", fontSize = 12.sp, color = Muted)
                 Text("YouTube 공식 앱이 아닙니다. 유튜브 변경에 따라 재생이 중단될 수 있습니다.", fontSize = 12.sp, color = Muted)
-                Text("오픈소스: NewPipe Extractor (GPL-3.0-or-later), AndroidX Media3 / Compose, OkHttp, Coil (Apache-2.0).\n앱 소스: GPL-3.0-or-later · 버전 1.4.0", fontSize = 11.sp, color = Muted)
+                Text("오픈소스: NewPipe Extractor (GPL-3.0-or-later), AndroidX Media3 / Compose, OkHttp, Coil (Apache-2.0).\n앱 소스: GPL-3.0-or-later · 버전 1.5.1", fontSize = 11.sp, color = Muted)
             } }, confirmButton = { TextButton(onClick = { showAbout = false }) { Text("확인") } })
+        }
+        if (needsScreenLock && !focusLocked) AlertDialog(
+            onDismissRequest = { model.needsScreenLock.value = false },
+            title = { Text("화면 잠금을 먼저 설정해 주세요") },
+            text = { Text("집중 시작 후에는 터치가 잠깁니다. 해제에 사용할 지문·패턴·PIN을 기기 설정에서 등록해 주세요.") },
+            confirmButton = { TextButton(onClick = { model.needsScreenLock.value = false; onSetScreenLock() }) { Text("기기 설정 열기") } },
+            dismissButton = { TextButton(onClick = { model.needsScreenLock.value = false }) { Text("취소") } },
+        )
     }
 }
 

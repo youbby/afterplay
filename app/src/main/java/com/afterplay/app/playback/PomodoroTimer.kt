@@ -6,6 +6,7 @@ import android.os.Looper
 import com.afterplay.app.data.PomodoroPhase
 import com.afterplay.app.data.PomodoroSession
 import com.afterplay.app.data.PomodoroConfig
+import com.afterplay.app.data.PomodoroNotice
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
@@ -13,8 +14,10 @@ import kotlinx.coroutines.flow.asStateFlow
 class PomodoroTimer(context: Context) {
     private val preferences = context.getSharedPreferences("pomodoro_v1", Context.MODE_PRIVATE)
     private val handler = Handler(Looper.getMainLooper())
-    private val mutableState = MutableStateFlow(restore().advance(System.currentTimeMillis()))
+    private val mutableState = MutableStateFlow(restore())
     val state = mutableState.asStateFlow()
+    private val mutableNotice = MutableStateFlow(restoreNotice())
+    val notice = mutableNotice.asStateFlow()
     private val ticker = Runnable { refresh() }
 
     init { refresh() }
@@ -29,13 +32,23 @@ class PomodoroTimer(context: Context) {
 
     fun refresh() {
         val before = mutableState.value
-        val after = before.advance(System.currentTimeMillis())
+        val now = System.currentTimeMillis()
+        val after = before.advance(now)
+        if (before.running && now >= before.deadlineMs) {
+            mutableNotice.value = PomodoroNotice.between(before, after, now)
+            saveNotice()
+        } else if (mutableNotice.value?.activeAt(now) == false) {
+            mutableNotice.value = null
+            saveNotice()
+        }
         mutableState.value = after
         if (before.phase != after.phase || before.completedFocusSessions != after.completedFocusSessions) save(after)
         scheduleTick()
     }
 
     private fun update(change: (PomodoroSession) -> PomodoroSession) {
+        mutableNotice.value = null
+        saveNotice()
         mutableState.value = change(mutableState.value)
         save(mutableState.value)
         scheduleTick()
@@ -65,4 +78,14 @@ class PomodoroTimer(context: Context) {
             running = running && deadline > 0, completedFocusSessions = preferences.getInt("completed", 0).coerceAtLeast(0),
             deadlineMs = deadline)
     }.getOrDefault(PomodoroSession())
+
+    private fun saveNotice() {
+        preferences.edit().putString("notice_phase", mutableNotice.value?.completedPhase?.name)
+            .putLong("notice_at", mutableNotice.value?.startedAtMs ?: 0).apply()
+    }
+
+    private fun restoreNotice(): PomodoroNotice? = runCatching {
+        PomodoroNotice(PomodoroPhase.valueOf(preferences.getString("notice_phase", "")!!),
+            preferences.getLong("notice_at", 0)).takeIf { it.activeAt(System.currentTimeMillis()) }
+    }.getOrNull()
 }

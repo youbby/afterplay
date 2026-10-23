@@ -3,10 +3,13 @@ package com.afterplay.app
 import android.content.pm.ActivityInfo
 import android.content.ComponentName
 import android.graphics.Bitmap
+import android.view.View
+import android.view.ViewGroup
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.UiDevice
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.session.MediaController
@@ -14,6 +17,8 @@ import androidx.media3.session.SessionToken
 import com.afterplay.app.playback.PlaybackService
 import org.junit.Assert.*
 import org.junit.Rule
+import org.junit.Before
+import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
@@ -26,6 +31,73 @@ class LandscapeWorkspaceTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
     private val app get() = instrumentation.targetContext.applicationContext as AfterPlayApp
+
+    @Before @After fun restoreFocusState() {
+        instrumentation.runOnMainSync {
+            app.focusGuard.unlockAfterAuthentication()
+            app.pomodoro.configure(com.afterplay.app.data.PomodoroConfig())
+        }
+    }
+
+    private fun togglePomodoro() {
+        compose.onNodeWithTag("pomodoro_toggle").performClick()
+        // Other tests cover the real credential flow; this fixture isolates layout/timer behavior.
+        instrumentation.runOnMainSync { app.focusGuard.unlockAfterAuthentication() }
+        compose.waitForIdle()
+    }
+
+    @Test fun onlyRunningPomodoroKeepsScreenOnAndPreventsPortraitRotation() {
+        try {
+            instrumentation.runOnMainSync { app.pomodoro.reset() }
+            rotate(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
+            assertScreenKeptOn(false)
+            compose.onNodeWithContentDescription("뽀모도로 실행 중 화면 켜짐 유지").assertDoesNotExist()
+            togglePomodoro()
+            assertScreenKeptOn(true)
+            compose.onNodeWithContentDescription("뽀모도로 실행 중 화면 켜짐 유지").assertIsDisplayed()
+            UiDevice.getInstance(instrumentation).setOrientationNatural()
+            instrumentation.uiAutomation.waitForIdle(100, 3_000)
+            assertLandscapeLocked()
+            compose.onNodeWithContentDescription("다음 뽀모도로 단계").performClick()
+            assertEquals(com.afterplay.app.data.PomodoroPhase.SHORT_BREAK, app.pomodoro.state.value.phase)
+            assertScreenKeptOn(true)
+            compose.activityRule.scenario.recreate()
+            assertScreenKeptOn(true)
+            assertLandscapeLocked()
+            togglePomodoro()
+            assertScreenKeptOn(false)
+            compose.onNodeWithContentDescription("뽀모도로 실행 중 화면 켜짐 유지").assertDoesNotExist()
+            rotate(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
+            assertScreenKeptOn(false)
+            rotate(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
+            togglePomodoro()
+            assertScreenKeptOn(true)
+            compose.onNodeWithContentDescription("뽀모도로 초기화").performClick()
+            assertScreenKeptOn(false)
+            rotate(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
+            assertScreenKeptOn(false)
+        } finally {
+            UiDevice.getInstance(instrumentation).unfreezeRotation()
+            instrumentation.runOnMainSync { app.pomodoro.reset() }
+        }
+    }
+
+    private fun assertLandscapeLocked() {
+        compose.activityRule.scenario.onActivity {
+            assertEquals(android.content.res.Configuration.ORIENTATION_LANDSCAPE, it.resources.configuration.orientation)
+            assertEquals(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE, it.requestedOrientation)
+        }
+    }
+
+    private fun assertScreenKeptOn(expected: Boolean) {
+        fun View.keepsScreenOn(): Boolean = keepScreenOn ||
+            (this is ViewGroup && (0 until childCount).any { getChildAt(it).keepsScreenOn() })
+        compose.waitForIdle()
+        compose.activityRule.scenario.onActivity {
+            assertEquals("App view should reflect the effective screen timeout policy", expected,
+                it.window.decorView.keepsScreenOn())
+        }
+    }
 
     @Test fun playerIsOnLeftWithClockAndPomodoroOnRight() {
         try {
@@ -48,16 +120,18 @@ class LandscapeWorkspaceTest {
     @Test fun focusSurvivesRotationAndRecreationAndCanPauseSkipAndReset() {
         try {
             rotate(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
-            compose.onNodeWithTag("pomodoro_toggle").performClick()
+            togglePomodoro()
             compose.waitUntil(5_000) { app.pomodoro.state.value.remainingMs < 25 * 60_000L - 1_000 }
-            rotate(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
             compose.activityRule.scenario.recreate()
-            rotate(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
+            assertLandscapeLocked()
             assertTrue(app.pomodoro.state.value.running)
-            compose.onNodeWithTag("pomodoro_toggle").assertTextEquals("일시정지").performClick()
+            compose.onNodeWithTag("pomodoro_toggle").assertTextEquals("일시정지")
+            togglePomodoro()
             val paused = app.pomodoro.state.value.remainingMs
             Thread.sleep(1_200)
             assertEquals(paused, app.pomodoro.state.value.remainingMs)
+            rotate(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
+            rotate(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
             compose.onNodeWithContentDescription("다음 뽀모도로 단계").performClick()
             compose.onNodeWithTag("pomodoro_phase").assertTextEquals("휴식")
             compose.onNodeWithTag("pomodoro_remaining").assertTextEquals("5:00")
@@ -91,7 +165,7 @@ class LandscapeWorkspaceTest {
                 instrumentation.runOnMainSync { playing = controller.isPlaying }
                 playing && compose.onAllNodesWithText(title).fetchSemanticsNodes().isNotEmpty()
             }
-            compose.onNodeWithTag("pomodoro_toggle").performClick()
+            togglePomodoro()
             compose.waitUntil(5_000) { app.pomodoro.state.value.remainingMs < 25 * 60_000L - 1_000 }
             val screenshot = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
             try {
@@ -99,9 +173,9 @@ class LandscapeWorkspaceTest {
                     screenshot.compress(Bitmap.CompressFormat.PNG, 100, it)
                 }
             } finally { screenshot.recycle() }
-            compose.onNodeWithTag("pomodoro_toggle").performClick()
+            togglePomodoro()
             instrumentation.runOnMainSync { assertTrue("Pausing focus must not pause music", controller.isPlaying) }
-            compose.onNodeWithTag("pomodoro_toggle").performClick()
+            togglePomodoro()
             compose.onNodeWithContentDescription("일시정지").performClick()
             compose.waitUntil(5_000) {
                 var paused = false
@@ -122,10 +196,21 @@ class LandscapeWorkspaceTest {
     private fun rotate(orientation: Int) {
         instrumentation.runOnMainSync { app.pomodoro.refresh() }
         compose.activityRule.scenario.onActivity { it.requestedOrientation = orientation }
-        compose.waitUntil(10_000) {
-            val landscape = compose.onAllNodesWithTag("landscape_workspace").fetchSemanticsNodes().isNotEmpty()
-            landscape == (orientation == ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
+        val expected = if (orientation == ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
+            android.content.res.Configuration.ORIENTATION_LANDSCAPE else android.content.res.Configuration.ORIENTATION_PORTRAIT
+        val until = System.currentTimeMillis() + 10_000
+        var ready = false
+        while (!ready && System.currentTimeMillis() < until) {
+            compose.activityRule.scenario.onActivity {
+                ready = it.resources.configuration.orientation == expected && it.window.decorView.isAttachedToWindow &&
+                    it.window.decorView.hasWindowFocus()
+            }
+            if (!ready) Thread.sleep(100)
         }
+        assertTrue("Rotated activity should be attached and focused", ready)
+        // Querying old Compose roots during recreation can await a frame from a detached window.
+        instrumentation.waitForIdleSync()
+        instrumentation.uiAutomation.waitForIdle(100, 3_000)
         compose.waitForIdle()
     }
 }
