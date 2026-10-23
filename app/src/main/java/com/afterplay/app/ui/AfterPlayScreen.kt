@@ -86,21 +86,23 @@ fun AfterPlayScreen(model: PlayerViewModel, onAddQuickSettingsTile: () -> Unit =
     }
     LaunchedEffect(theme.dark) { onThemeChanged(theme.dark) }
     AfterPlayTheme(theme) {
+        val libraryHeader: @Composable () -> Unit = {
+            Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.GraphicEq, null, tint = Accent, modifier = Modifier.size(30.dp))
+                Spacer(Modifier.width(10.dp))
+                Text("이어듣기", fontWeight = FontWeight.Bold, fontSize = 21.sp)
+                Spacer(Modifier.weight(1f))
+                if (!workspace) FocusLockButton(focusLocked, onLock = { model.lockFocus() }, tint = Muted)
+                if (workspace) Text("AFTERPLAY", fontSize = 10.sp, letterSpacing = 2.sp, color = Muted)
+                IconButton(onClick = { settingsTab = 0 }) { Icon(Icons.Rounded.Palette, "앱 설정", tint = Muted) }
+                IconButton(onClick = { showAbout = true }) { Icon(Icons.Rounded.Info, "앱 정보", tint = Muted) }
+            }
+        }
         val libraryContent: @Composable () -> Unit = {
             LazyColumn(Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                item {
-                    Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.GraphicEq, null, tint = Accent, modifier = Modifier.size(30.dp))
-                        Spacer(Modifier.width(10.dp))
-                        Text("이어듣기", fontWeight = FontWeight.Bold, fontSize = 21.sp)
-                        Spacer(Modifier.weight(1f))
-                        Text("AFTERPLAY", fontSize = 10.sp, letterSpacing = 2.sp, color = Muted)
-                        IconButton(onClick = { settingsTab = 0 }) { Icon(Icons.Rounded.Palette, "앱 설정", tint = Muted) }
-                        IconButton(onClick = { showAbout = true }) { Icon(Icons.Rounded.Info, "앱 정보", tint = Muted) }
-                    }
-                }
+                if (workspace) item { libraryHeader() }
                 item {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("내 재생목록", fontWeight = FontWeight.Bold, fontSize = 19.sp)
@@ -166,11 +168,11 @@ fun AfterPlayScreen(model: PlayerViewModel, onAddQuickSettingsTile: () -> Unit =
         }
         FocusTouchGuard(focusLocked, onUnlockFocus) {
         Scaffold(containerColor = Background, snackbarHost = { SnackbarHost(snackbar) },
-            bottomBar = { if (!workspace && !focusLocked) PlayerPanel(playback, model) }) { padding ->
+            topBar = { if (!workspace) Box(Modifier.statusBarsPadding().padding(horizontal = 24.dp, vertical = 8.dp)) { libraryHeader() } },
+            bottomBar = { if (!workspace) PlayerPanel(playback, model) }) { padding ->
             Box(Modifier.fillMaxSize().padding(padding)) {
                 if (workspace) LandscapeWorkspace(playback, model, selected, libraryContent,
                     onSettings = { settingsTab = it })
-                else if (focusLocked) ClockAndPomodoro(model, onSettings = { settingsTab = 1 })
                 else libraryContent()
             }
         }
@@ -237,7 +239,7 @@ fun AfterPlayScreen(model: PlayerViewModel, onAddQuickSettingsTile: () -> Unit =
                 }
                 Text("인터넷 연결이 필요합니다. 공개된 일반 영상만 지원하며, 비공개·유료·로그인 필요 영상과 실시간 방송은 지원하지 않습니다.", fontSize = 12.sp, color = Muted)
                 Text("YouTube 공식 앱이 아닙니다. 유튜브 변경에 따라 재생이 중단될 수 있습니다.", fontSize = 12.sp, color = Muted)
-                Text("오픈소스: NewPipe Extractor (GPL-3.0-or-later), AndroidX Media3 / Compose, OkHttp, Coil (Apache-2.0).\n앱 소스: GPL-3.0-or-later · 버전 1.5.1", fontSize = 11.sp, color = Muted)
+                Text("오픈소스: NewPipe Extractor (GPL-3.0-or-later), AndroidX Media3 / Compose, OkHttp, Coil (Apache-2.0).\n앱 소스: GPL-3.0-or-later · 버전 1.5.2", fontSize = 11.sp, color = Muted)
             } }, confirmButton = { TextButton(onClick = { showAbout = false }) { Text("확인") } })
         }
         if (needsScreenLock && !focusLocked) AlertDialog(

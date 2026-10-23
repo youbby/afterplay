@@ -72,7 +72,6 @@ internal fun LandscapeWorkspace(
 
 @Composable
 private fun CompactPlayer(state: PlaybackUi, model: PlayerViewModel, selected: Playlist?, onLibrary: () -> Unit, onSettings: () -> Unit) {
-    val locked by model.focusLocked.collectAsStateWithLifecycle()
     var showSleep by rememberSaveable { mutableStateOf(false) }
     var dragged by remember(state.id) { mutableStateOf<Float?>(null) }
     val hasItem = state.id.isNotEmpty()
@@ -83,11 +82,9 @@ private fun CompactPlayer(state: PlaybackUi, model: PlayerViewModel, selected: P
             Spacer(Modifier.width(8.dp))
             Text("이어듣기", fontWeight = FontWeight.Bold, fontSize = 16.sp)
             Spacer(Modifier.weight(1f))
-            if (!locked) {
-                IconButton(onClick = onSettings) { Icon(Icons.Rounded.Palette, "앱 설정", tint = Muted) }
-                IconButton(onClick = onLibrary) {
-                    Icon(Icons.AutoMirrored.Rounded.PlaylistPlay, "재생목록 열기", tint = Muted)
-                }
+            IconButton(onClick = onSettings) { Icon(Icons.Rounded.Palette, "앱 설정", tint = Muted) }
+            IconButton(onClick = onLibrary) {
+                Icon(Icons.AutoMirrored.Rounded.PlaylistPlay, "재생목록 열기", tint = Muted)
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -110,7 +107,6 @@ private fun CompactPlayer(state: PlaybackUi, model: PlayerViewModel, selected: P
                 Text(clockTime(state.duration), color = Muted, fontSize = 10.sp)
             }
         }
-        if (!locked) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
             Control(Icons.Rounded.Shuffle, if (state.shuffle) "셔플 켜짐" else "셔플 꺼짐", model::shuffle, state.shuffle, hasItem)
             Control(Icons.Rounded.SkipPrevious, "이전 곡", model::previous, enabled = state.canPrevious)
@@ -134,7 +130,6 @@ private fun CompactPlayer(state: PlaybackUi, model: PlayerViewModel, selected: P
             }
             Spacer(Modifier.weight(1f))
             if (hasItem) IconButton(onClick = model::stop) { Icon(Icons.Rounded.Close, "재생 종료", tint = Muted, modifier = Modifier.size(18.dp)) }
-        }
         }
         state.error?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 11.sp) }
     }
@@ -167,10 +162,10 @@ internal fun ClockAndPomodoro(model: PlayerViewModel, onSettings: () -> Unit) {
                         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(now.format(dateFormat), color = Muted, fontSize = 12.sp, maxLines = 1)
                         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                            Text(now.format(timeFormat), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Light,
+                            Text(now.format(timeFormat), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold,
                                 fontSize = if (roomy) 50.sp else 40.sp, letterSpacing = (-2).sp,
                                 modifier = Modifier.testTag("wall_clock"), maxLines = 1)
-                            Text(now.format(secondFormat), fontFamily = FontFamily.Monospace, fontSize = 12.sp,
+                            Text(now.format(secondFormat), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Medium, fontSize = 12.sp,
                                 color = Muted, modifier = Modifier.padding(bottom = if (roomy) 10.dp else 8.dp))
                         }
                     }
@@ -209,50 +204,53 @@ private fun PomodoroPanel(timer: PomodoroSession, notice: PomodoroNotice?, model
             val scale = androidx.compose.ui.platform.LocalDensity.current.fontScale
             val digits = clockTime(timer.remainingMs + 999).length
             val timerSize = minOf(preferredSize, (maxWidth.value - 32) / (digits * .62f * scale)).sp
-            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
+            Column(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(if (compact) 3.dp else 8.dp, Alignment.CenterVertically)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text("POMODORO", color = muted, fontSize = 10.sp, letterSpacing = 2.sp)
                     Spacer(Modifier.weight(1f))
-                    if (!locked && timer.running) IconButton(onClick = { model.lockFocus() }, modifier = Modifier.size(30.dp)) {
-                        Icon(Icons.Rounded.Lock, "집중 보호 켜기", tint = muted, modifier = Modifier.size(17.dp))
-                    }
-                    if (!locked) IconButton(onClick = onSettings, modifier = Modifier.size(30.dp)) {
+                    FocusLockButton(locked, onLock = { model.lockFocus() }, tint = muted)
+                    IconButton(onClick = onSettings, modifier = Modifier.size(30.dp)) {
                         Icon(Icons.Rounded.Tune, "뽀모도로 시간 설정", tint = muted, modifier = Modifier.size(18.dp))
                     }
                     Text(timer.phase.label, color = foreground, fontWeight = FontWeight.SemiBold, fontSize = 12.sp,
                         modifier = Modifier.background(foreground.copy(alpha = .1f), RoundedCornerShape(12.dp))
                             .padding(horizontal = 10.dp, vertical = 4.dp).testTag("pomodoro_phase"))
                 }
-                Text(clockTime(timer.remainingMs + 999), fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Medium, color = foreground, fontSize = timerSize, maxLines = 1,
-                    modifier = Modifier.testTag("pomodoro_remaining"))
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    repeat(4) { index ->
-                        Box(Modifier.size(6.dp).background(if (index < timer.round) foreground else muted.copy(alpha = .2f), CircleShape))
+                // Reserve the lock header even when the timer controls need to scroll.
+                Column(Modifier.weight(1f, fill = false).fillMaxWidth().verticalScroll(rememberScrollState()),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(if (compact) 3.dp else 8.dp)) {
+                    Text(clockTime(timer.remainingMs + 999), fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Medium, color = foreground, fontSize = timerSize, maxLines = 1,
+                        modifier = Modifier.testTag("pomodoro_remaining"))
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        repeat(4) { index ->
+                            Box(Modifier.size(6.dp).background(if (index < timer.round) foreground else muted.copy(alpha = .2f), CircleShape))
+                        }
+                        Text("${timer.round}/4회차 · ${timer.completedFocusSessions}회 집중 완료", color = muted, fontSize = 10.sp,
+                            modifier = Modifier.padding(start = 5.dp))
                     }
-                    Text("${timer.round}/4회차 · ${timer.completedFocusSessions}회 집중 완료", color = muted, fontSize = 10.sp,
-                        modifier = Modifier.padding(start = 5.dp))
+                    Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        IconButton(onClick = model::resetPomodoro, modifier = Modifier.size(40.dp)) {
+                            Icon(Icons.Rounded.RestartAlt, "뽀모도로 초기화", tint = muted)
+                        }
+                        Button(onClick = model::togglePomodoro, modifier = Modifier.weight(1f).height(42.dp).testTag("pomodoro_toggle"),
+                            colors = ButtonDefaults.buttonColors(containerColor = foreground, contentColor = cardColor)) {
+                            Icon(if (timer.running) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, null, Modifier.size(20.dp))
+                            Spacer(Modifier.width(5.dp))
+                            Text(if (timer.running) "일시정지" else if (timer.remainingMs == timer.durationMs) "${timer.phase.label} 시작" else "계속", fontSize = 13.sp)
+                        }
+                        IconButton(onClick = model::skipPomodoro, modifier = Modifier.size(40.dp)) {
+                            Icon(Icons.Rounded.SkipNext, "다음 뽀모도로 단계", tint = muted)
+                        }
+                    }
+                    if (showDetails) Text(if (notice != null) "${notice.completedPhase.label} 완료 · ${timer.phase.label} 시작"
+                        else "집중 ${timer.config.focusMinutes}분 · 휴식 ${timer.config.shortBreakMinutes}분 · 4회 후 ${timer.config.longBreakMinutes}분 휴식",
+                        color = muted, fontSize = 10.sp, maxLines = 2, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 }
-                if (!locked) Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    IconButton(onClick = model::resetPomodoro, modifier = Modifier.size(40.dp)) {
-                        Icon(Icons.Rounded.RestartAlt, "뽀모도로 초기화", tint = muted)
-                    }
-                    Button(onClick = model::togglePomodoro, modifier = Modifier.weight(1f).height(42.dp).testTag("pomodoro_toggle"),
-                        colors = ButtonDefaults.buttonColors(containerColor = foreground, contentColor = cardColor)) {
-                        Icon(if (timer.running) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, null, Modifier.size(20.dp))
-                        Spacer(Modifier.width(5.dp))
-                        Text(if (timer.running) "일시정지" else if (timer.remainingMs == timer.durationMs) "${timer.phase.label} 시작" else "계속", fontSize = 13.sp)
-                    }
-                    IconButton(onClick = model::skipPomodoro, modifier = Modifier.size(40.dp)) {
-                        Icon(Icons.Rounded.SkipNext, "다음 뽀모도로 단계", tint = muted)
-                    }
-                }
-                if (showDetails) Text(if (notice != null) "${notice.completedPhase.label} 완료 · ${timer.phase.label} 시작"
-                    else "집중 ${timer.config.focusMinutes}분 · 휴식 ${timer.config.shortBreakMinutes}분 · 4회 후 ${timer.config.longBreakMinutes}분 휴식",
-                    color = muted, fontSize = 10.sp, maxLines = 2, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             }
         }
     }

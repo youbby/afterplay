@@ -51,9 +51,26 @@ class FocusGuardTest {
     @Test fun touchGuardRequiresActualDeviceCredentialAndSurvivesRecreation() {
         Assume.assumeTrue(app.focusGuard.canLock)
         landscape()
+        val lockBounds = compose.onNodeWithTag("focus_lock").fetchSemanticsNode().boundsInRoot
+        val playerBounds = compose.onNodeWithTag("compact_player").fetchSemanticsNode().boundsInRoot
+        val clockBounds = compose.onNodeWithTag("clock_panel").fetchSemanticsNode().boundsInRoot
+        val timerBounds = compose.onNodeWithTag("pomodoro_panel").fetchSemanticsNode().boundsInRoot
+        val blockedTargets = listOf(
+            compose.onNodeWithTag("pomodoro_toggle").fetchSemanticsNode().boundsInRoot.center,
+            compose.onNodeWithContentDescription("뽀모도로 초기화").fetchSemanticsNode().boundsInRoot.center,
+            compose.onNodeWithContentDescription("다음 뽀모도로 단계").fetchSemanticsNode().boundsInRoot.center,
+            compose.onNodeWithContentDescription("뽀모도로 시간 설정").fetchSemanticsNode().boundsInRoot.center,
+            compose.onNodeWithContentDescription("재생목록 열기").fetchSemanticsNode().boundsInRoot.center,
+        )
         compose.onNodeWithTag("pomodoro_toggle").performClick()
         compose.onNodeWithTag("focus_unlock").assertIsDisplayed()
+        assertEquals("Lock button must stay in the same place", lockBounds,
+            compose.onNodeWithTag("focus_unlock").fetchSemanticsNode().boundsInRoot)
         compose.onNodeWithTag("pomodoro_toggle").assertDoesNotExist()
+        val blockerOrigin = compose.onNodeWithTag("focus_touch_blocker").fetchSemanticsNode().boundsInRoot.topLeft
+        compose.onNodeWithTag("focus_touch_blocker").performTouchInput {
+            blockedTargets.forEach { click(it - blockerOrigin) }
+        }
         compose.onNodeWithTag("focus_touch_blocker").performTouchInput { click(center); swipeLeft() }
         assertTrue(app.pomodoro.state.value.running)
         assertEquals(PomodoroPhase.FOCUS, app.pomodoro.state.value.phase)
@@ -77,6 +94,17 @@ class FocusGuardTest {
         compose.waitUntil(10_000) { !app.focusGuard.locked.value }
         assertFalse(FocusGuard(context).locked.value)
         assertTrue("Unlocking controls must not pause the timer", app.pomodoro.state.value.running)
+        compose.onNodeWithTag("focus_lock").assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "잠금 해제됨"))
+        assertEquals(playerBounds, compose.onNodeWithTag("compact_player").fetchSemanticsNode().boundsInRoot)
+        assertEquals(clockBounds, compose.onNodeWithTag("clock_panel").fetchSemanticsNode().boundsInRoot)
+        assertEquals(timerBounds, compose.onNodeWithTag("pomodoro_panel").fetchSemanticsNode().boundsInRoot)
+        assertEquals(lockBounds, compose.onNodeWithTag("focus_lock").fetchSemanticsNode().boundsInRoot)
+        capture("focus-unlocked.png")
+        compose.onNodeWithTag("focus_lock").performClick()
+        compose.onNodeWithTag("focus_unlock").assertIsDisplayed()
+        assertTrue(app.focusGuard.locked.value)
+        // Authentication was exercised above; use the fixture to finish without a second PIN prompt.
+        instrumentation.runOnMainSync { app.focusGuard.unlockAfterAuthentication() }
         compose.onNodeWithTag("pomodoro_toggle").assertIsDisplayed().performClick()
         assertFalse(app.pomodoro.state.value.running)
     }
@@ -99,6 +127,23 @@ class FocusGuardTest {
         compose.onNodeWithTag("clock_panel").assertIsDisplayed()
         compose.waitUntil(12_000) { app.pomodoro.notice.value == null }
         assertEquals("기본", panelState())
+    }
+
+    @Test fun lockStaysReachableWhenControlsScrollAndWhenRotatedWhilePaused() {
+        Assume.assumeTrue(app.focusGuard.canLock)
+        landscape()
+        compose.onNodeWithTag("pomodoro_toggle").performTouchInput { swipeUp() }
+        compose.onNodeWithTag("focus_lock").assertIsDisplayed().performClick()
+        compose.onNodeWithTag("focus_unlock").assertIsDisplayed()
+        assertTrue(app.focusGuard.locked.value)
+        assertFalse(app.pomodoro.state.value.running)
+        compose.activityRule.scenario.onActivity { it.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT }
+        // The portrait header also keeps the sole authentication button reachable.
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("focus_unlock").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("focus_unlock").assertIsDisplayed().performClick()
+        assertNotNull(device.wait(Until.findObject(By.clazz("android.widget.EditText")), 10_000))
+        device.pressBack()
+        assertTrue(app.focusGuard.locked.value)
     }
 
     private fun panelState() = compose.onNodeWithTag("pomodoro_panel").fetchSemanticsNode()
