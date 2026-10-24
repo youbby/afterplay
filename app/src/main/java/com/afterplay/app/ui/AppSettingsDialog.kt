@@ -35,45 +35,17 @@ import com.afterplay.app.data.ThemePreset
 
 @Composable
 internal fun AppSettingsDialog(model: PlayerViewModel, theme: ThemePreset, initialTab: Int, dismiss: () -> Unit) {
-    val timer by model.pomodoro.collectAsStateWithLifecycle()
-    var tab by rememberSaveable { mutableIntStateOf(initialTab) }
-    var focus by rememberSaveable { mutableStateOf(timer.config.focusMinutes.toString()) }
-    var shortBreak by rememberSaveable { mutableStateOf(timer.config.shortBreakMinutes.toString()) }
-    var longBreak by rememberSaveable { mutableStateOf(timer.config.longBreakMinutes.toString()) }
-    val valid = (focus.toIntOrNull() ?: 0) in 1..180 && (shortBreak.toIntOrNull() ?: 0) in 1..60 && (longBreak.toIntOrNull() ?: 0) in 1..120
-    AlertDialog(onDismissRequest = dismiss, title = { Text("앱 설정") },
+    if (initialTab == 1) {
+        PomodoroSettingsDialog(model, dismiss)
+        return
+    }
+    AlertDialog(onDismissRequest = dismiss, title = { Text("테마 설정") },
         text = {
-            Column {
-                TabRow(selectedTabIndex = tab) {
-                    Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("테마") })
-                    Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("뽀모도로") })
-                }
-                Column(Modifier.fillMaxWidth().heightIn(max = 440.dp).verticalScroll(rememberScrollState())
-                    .padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    if (tab == 0) {
-                        Text("다섯 가지 색 조합으로 화면 전체를 바꿔보세요.\n선택한 테마는 바로 저장됩니다.", fontSize = 12.sp, color = Muted)
-                        for (preset in ThemePreset.entries) ThemeCard(preset, preset == theme) { model.setTheme(preset) }
-                    } else {
-                        Text("집중과 두 가지 휴식 시간을 정해 주세요.", fontSize = 12.sp, color = Muted)
-                        DurationField("집중 시간", "focus_minutes", focus, 1..180) { focus = it }
-                        DurationField("짧은 휴식", "short_break_minutes", shortBreak, 1..60) { shortBreak = it }
-                        DurationField("긴 휴식", "long_break_minutes", longBreak, 1..120) { longBreak = it }
-                        Text("집중 4회마다 긴 휴식으로 자동 전환합니다.", fontSize = 12.sp, color = Muted)
-                        Text("시간을 저장하면 진행 중인 타이머가 초기화되고 일시정지됩니다. 음악은 계속 재생됩니다.",
-                            fontSize = 12.sp, color = Muted)
-                    }
-                }
+            Column(Modifier.fillMaxWidth().heightIn(max = 440.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                for (preset in ThemePreset.entries) ThemeCard(preset, preset == theme) { model.setTheme(preset) }
             }
-        },
-        confirmButton = {
-            if (tab == 1) TextButton(enabled = valid, onClick = {
-                model.configurePomodoro(PomodoroConfig(focus.toInt(), shortBreak.toInt(), longBreak.toInt()))
-                dismiss()
-            }) { Text("시간 저장") }
-            else TextButton(onClick = dismiss) { Text("완료") }
-        },
-        dismissButton = { if (tab == 1) TextButton(onClick = dismiss) { Text("취소") } },
-    )
+        }, confirmButton = { TextButton(onClick = dismiss) { Text("완료") } })
 }
 
 @Composable
@@ -98,18 +70,18 @@ private fun ThemeCard(preset: ThemePreset, active: Boolean, onSelect: () -> Unit
 }
 
 @Composable
-private fun DurationField(label: String, tag: String, value: String, range: IntRange, change: (String) -> Unit) {
+internal fun DurationField(label: String, tag: String, value: String, range: IntRange, unit: String = "분", change: (String) -> Unit) {
     val keyboard = LocalSoftwareKeyboardController.current
     val valid = (value.toIntOrNull() ?: 0) in range
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(label, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-            Text("${range.first}–${range.last}분", fontSize = 11.sp, color = Muted)
+            Text("${range.first}–${range.last}$unit", fontSize = 11.sp, color = Muted)
         }
         OutlinedTextField(value = value, onValueChange = { change(it.filter(Char::isDigit).take(3)) },
             modifier = Modifier.width(108.dp).testTag(tag), singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
-            keyboardActions = KeyboardActions(onDone = { keyboard?.hide() }), suffix = { Text("분") },
+            keyboardActions = KeyboardActions(onDone = { keyboard?.hide() }), suffix = { Text(unit) },
             isError = !valid, label = { Text(label, fontSize = 11.sp) })
     }
 }

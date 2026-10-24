@@ -36,4 +36,15 @@ class PomodoroNoticeTest {
         val next = rest.advance(rest.deadlineMs)
         assertEquals(PomodoroPhase.LONG_BREAK, PomodoroNotice.between(rest, next, rest.deadlineMs)?.completedPhase)
     }
+
+    @Test fun longBreakNoticeUsesConfiguredRoundsEvenWhenOneWasSkipped() {
+        val initial = PomodoroSession(config = PomodoroConfig(20, 5, 30, 2)).start(start)
+        val second = initial.skip(start + 1_000).skip(start + 2_000)
+        val longBreak = second.advance(second.deadlineMs)
+        assertEquals(1, longBreak.completedFocusSessions)
+        assertEquals(PomodoroPhase.LONG_BREAK, longBreak.phase)
+        val next = longBreak.advance(longBreak.deadlineMs)
+        assertEquals(PomodoroPhase.LONG_BREAK,
+            PomodoroNotice.between(longBreak, next, longBreak.deadlineMs)?.completedPhase)
+    }
 }

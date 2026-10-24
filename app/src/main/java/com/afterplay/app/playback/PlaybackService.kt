@@ -24,15 +24,19 @@ import androidx.media3.session.MediaSessionService
 import com.afterplay.app.AfterPlayApp
 import com.afterplay.app.MainActivity
 import com.afterplay.app.data.Track
+import com.afterplay.app.diagnostics.DiagnosticKind
+import com.afterplay.app.diagnostics.PlaybackDiagnosticListener
 import java.io.IOException
 
 @androidx.annotation.OptIn(UnstableApi::class)
 class PlaybackService : MediaSessionService() {
     private var session: MediaSession? = null
+    private var diagnosticListener: PlaybackDiagnosticListener? = null
     private val handler = Handler(Looper.getMainLooper())
     private val checkpointTask = object : Runnable {
         override fun run() {
             sleepTimer.checkDeadline()
+            diagnosticListener?.sample()
             session?.player?.let { if (it.isPlaying) store.save(it) }
             handler.postDelayed(this, 2000)
         }
@@ -43,6 +47,8 @@ class PlaybackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         val repository = (application as AfterPlayApp).youtube
+        val diagnostics = (application as AfterPlayApp).diagnostics
+        diagnostics.log.record(DiagnosticKind.SESSION, "재생 서비스 시작")
         val http = OkHttpDataSource.Factory(repository.playbackClient).setUserAgent(USER_AGENT)
         val resolving = ResolvingDataSource.Factory(http) { spec ->
             if (spec.uri.scheme != "youtube") spec else {
@@ -84,11 +90,17 @@ class PlaybackService : MediaSessionService() {
                     events.contains(Player.EVENT_POSITION_DISCONTINUITY))
             }
         })
-        player.addListener(PlaybackRecovery(player, handler, repository::invalidate))
+        diagnosticListener = PlaybackDiagnosticListener(player, diagnostics).also {
+            player.addListener(it); player.addAnalyticsListener(it)
+        }
+        player.addListener(PlaybackRecovery(player, handler, repository::invalidate) {
+            diagnostics.log.record(DiagnosticKind.RECOVERY, it)
+        })
         val activity = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         session = MediaSession.Builder(this, player).setSessionActivity(activity).build()
         sleepTimer.attach {
+            diagnostics.log.record(DiagnosticKind.SYSTEM_PAUSE, "수면 타이머 만료로 재생 종료(예정된 종료)")
             store.save(player, durable = true)
             player.pause()
             player.stop()
@@ -104,6 +116,8 @@ class PlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        (application as AfterPlayApp).diagnostics.log.record(DiagnosticKind.SESSION, "재생 서비스 정상 종료")
+        diagnosticListener = null
         sleepTimer.detach()
         handler.removeCallbacksAndMessages(null)
         session?.player?.let { store.save(it, durable = true) }

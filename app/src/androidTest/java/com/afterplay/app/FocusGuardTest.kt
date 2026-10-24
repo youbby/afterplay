@@ -109,29 +109,34 @@ class FocusGuardTest {
         assertFalse(app.pomodoro.state.value.running)
     }
 
-    @Test fun realFocusExpiryFlashesOnlyPomodoroAndKeepsGuardLocked() {
+    @Test fun skippedFocusShowsTriangleAndResetClearsAllRoundIcons() {
         Assume.assumeTrue(app.focusGuard.canLock)
         landscape()
-        instrumentation.runOnMainSync { app.pomodoro.configure(PomodoroConfig(1, 1, 1)) }
+        compose.onNodeWithText("POMODORO").assertDoesNotExist()
         compose.onNodeWithTag("pomodoro_toggle").performClick()
-        compose.waitUntil(65_000) { app.pomodoro.notice.value != null }
-        assertTrue(app.focusGuard.locked.value)
-        assertTrue(app.pomodoro.state.value.running)
-        assertEquals(PomodoroPhase.SHORT_BREAK, app.pomodoro.state.value.phase)
-        assertEquals(PomodoroPhase.FOCUS, app.pomodoro.notice.value?.completedPhase)
         instrumentation.runOnMainSync { app.focusGuard.unlockAfterAuthentication() }
-        compose.waitUntil(4_000) { panelState() == "완료 알림 반전" }
-        capture("pomodoro-inverted.png")
-        compose.waitUntil(4_000) { panelState() == "기본" }
-        capture("pomodoro-normal.png")
-        compose.onNodeWithTag("clock_panel").assertIsDisplayed()
-        compose.waitUntil(12_000) { app.pomodoro.notice.value == null }
-        assertEquals("기본", panelState())
+        assertTrue(compose.onNodeWithTag("pomodoro_status_badge").fetchSemanticsNode()
+            .config[SemanticsProperties.StateDescription].contains("ON AIR"))
+        compose.onNodeWithContentDescription("다음 뽀모도로 단계").performClick()
+        assertEquals(PomodoroPhase.SHORT_BREAK, app.pomodoro.state.value.phase)
+        compose.onNodeWithTag("pomodoro_round_0").assertTextEquals("△")
+        compose.onNodeWithTag("pomodoro_round_1").assertTextEquals("○")
+        assertEquals(0, app.pomodoro.state.value.completedFocusSessions)
+        assertNull(app.pomodoro.notice.value)
+        assertFalse(compose.onNodeWithTag("pomodoro_status_badge").fetchSemanticsNode()
+            .config[SemanticsProperties.StateDescription].contains("ON AIR"))
+        compose.onNodeWithContentDescription("다음 뽀모도로 단계").performClick()
+        assertEquals(2, app.pomodoro.state.value.round)
+        compose.onNodeWithTag("pomodoro_round_0").assertTextEquals("△")
+        compose.onNodeWithContentDescription("뽀모도로 초기화").performClick()
+        for (index in 0 until 4) compose.onNodeWithTag("pomodoro_round_$index").assertTextEquals("○")
+        assertFalse(app.pomodoro.state.value.running)
     }
 
     @Test fun lockStaysReachableWhenControlsScrollAndWhenRotatedWhilePaused() {
         Assume.assumeTrue(app.focusGuard.canLock)
         landscape()
+        compose.onNodeWithContentDescription("재생목록 열기").performClick()
         compose.onNodeWithTag("pomodoro_toggle").performTouchInput { swipeUp() }
         compose.onNodeWithTag("focus_lock").assertIsDisplayed().performClick()
         compose.onNodeWithTag("focus_unlock").assertIsDisplayed()

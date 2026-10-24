@@ -106,9 +106,13 @@ class LandscapeWorkspaceTest {
             val player = compose.onNodeWithTag("compact_player").fetchSemanticsNode().boundsInRoot
             val clock = compose.onNodeWithTag("wall_clock").fetchSemanticsNode().boundsInRoot
             assertTrue("Clock should be to the right of the compact player", clock.left >= player.right)
+            val lock = compose.onNodeWithTag("focus_lock").fetchSemanticsNode().boundsInRoot
+            val palette = compose.onNodeWithContentDescription("앱 설정").fetchSemanticsNode().boundsInRoot
+            assertTrue("Lock belongs beside the player palette", lock.left >= player.left && lock.right <= palette.left)
             compose.onNodeWithTag("pomodoro_remaining").assertTextEquals("25:00")
             compose.onNodeWithContentDescription("재생목록 열기").performClick()
             compose.onNodeWithText("내 재생목록").assertIsDisplayed()
+            compose.onNodeWithTag("focus_lock").assertIsDisplayed()
             compose.onNodeWithContentDescription("현재 재생으로 돌아가기").performClick()
             compose.onNodeWithContentDescription("재생목록 열기").assertIsDisplayed()
             rotate(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
@@ -133,7 +137,7 @@ class LandscapeWorkspaceTest {
             rotate(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
             rotate(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
             compose.onNodeWithContentDescription("다음 뽀모도로 단계").performClick()
-            compose.onNodeWithTag("pomodoro_phase").assertTextEquals("휴식")
+            compose.onNodeWithTag("pomodoro_phase").assertTextEquals("집중")
             compose.onNodeWithTag("pomodoro_remaining").assertTextEquals("5:00")
             compose.onNodeWithContentDescription("뽀모도로 초기화").performClick()
             compose.onNodeWithTag("pomodoro_phase").assertTextEquals("집중")
@@ -165,6 +169,9 @@ class LandscapeWorkspaceTest {
                 instrumentation.runOnMainSync { playing = controller.isPlaying }
                 playing && compose.onAllNodesWithText(title).fetchSemanticsNodes().isNotEmpty()
             }
+            compose.onNodeWithContentDescription("재생 종료").assertDoesNotExist()
+            assertTrue(compose.onNodeWithTag("sleep_timer_controls").fetchSemanticsNode().boundsInRoot.bottom <=
+                compose.onNodeWithText(title).fetchSemanticsNode().boundsInRoot.top)
             togglePomodoro()
             compose.waitUntil(5_000) { app.pomodoro.state.value.remainingMs < 25 * 60_000L - 1_000 }
             val screenshot = requireNotNull(instrumentation.uiAutomation.takeScreenshot())

@@ -14,6 +14,8 @@ import com.afterplay.app.data.Track
 import com.afterplay.app.data.PomodoroConfig
 import com.afterplay.app.data.ThemePreset
 import com.afterplay.app.data.YoutubeLink
+import com.afterplay.app.data.UpdateStatus
+import com.afterplay.app.data.UpdateCheckException
 import com.afterplay.app.data.add
 import com.afterplay.app.data.move
 import com.afterplay.app.data.resumePoint
@@ -21,6 +23,7 @@ import com.afterplay.app.data.transferTrack
 import com.afterplay.app.playback.PlaybackService
 import com.afterplay.app.playback.toMediaItem
 import com.afterplay.app.playback.DURATION_MS
+import com.afterplay.app.playback.PLAYLIST_ID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -32,6 +35,7 @@ import kotlinx.coroutines.withContext
 data class PlaybackUi(
     val connected: Boolean = false,
     val id: String = "",
+    val playlistId: String = "",
     val title: String = "아직 재생 중인 곡이 없어요",
     val artist: String = "재생목록에 영상을 추가해 보세요",
     val artwork: String = "",
@@ -65,6 +69,26 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     val focusLocked = app.focusGuard.locked
     val needsScreenLock = MutableStateFlow(false)
     val theme = app.appearance.state
+    val diagnostics = app.diagnostics.log.state
+    val diagnosticNetwork = app.diagnostics.network
+    fun refreshDiagnostics() = app.diagnostics.refresh()
+    fun clearDiagnostics() = app.diagnostics.log.clear()
+    fun diagnosticReport(): String = app.diagnostics.report()
+    private val _updateStatus = MutableStateFlow<UpdateStatus>(UpdateStatus.Idle)
+    val updateStatus = _updateStatus.asStateFlow()
+    fun checkForUpdates() {
+        if (_updateStatus.value == UpdateStatus.Checking) return
+        _updateStatus.value = UpdateStatus.Checking
+        viewModelScope.launch {
+            try {
+                _updateStatus.value = withContext(Dispatchers.IO) { app.updates.check(BuildConfig.VERSION_NAME) }
+            } catch (error: Exception) {
+                if (error is CancellationException) throw error
+                _updateStatus.value = UpdateStatus.Error(if (error is UpdateCheckException) error.message.orEmpty()
+                    else "업데이트 확인에 실패했습니다. 인터넷 연결을 확인하고 다시 시도해 주세요.")
+            }
+        }
+    }
     fun setTheme(preset: ThemePreset) = app.appearance.select(preset)
     fun configurePomodoro(config: PomodoroConfig) { if (!focusLocked.value) app.pomodoro.configure(config) }
     fun togglePomodoro() {
@@ -116,6 +140,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         _playback.value = PlaybackUi(
             connected = player.isConnected,
             id = player.currentMediaItem?.mediaId.orEmpty(),
+            playlistId = player.currentMediaItem?.mediaMetadata?.extras?.getString(PLAYLIST_ID).orEmpty(),
             title = metadata.title?.toString() ?: "아직 재생 중인 곡이 없어요",
             artist = metadata.artist?.toString() ?: "재생목록에 영상을 추가해 보세요",
             artwork = metadata.artworkUri?.toString().orEmpty(),

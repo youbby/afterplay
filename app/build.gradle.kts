@@ -11,11 +11,11 @@ android {
         applicationId = "com.afterplay.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 11
-        versionName = "1.5.2"
+        versionCode = 13
+        versionName = "1.6.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
-    buildFeatures { compose = true }
+    buildFeatures { compose = true; buildConfig = true }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

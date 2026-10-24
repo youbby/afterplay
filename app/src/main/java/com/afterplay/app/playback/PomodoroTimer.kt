@@ -7,6 +7,7 @@ import com.afterplay.app.data.PomodoroPhase
 import com.afterplay.app.data.PomodoroSession
 import com.afterplay.app.data.PomodoroConfig
 import com.afterplay.app.data.PomodoroNotice
+import com.afterplay.app.data.PomodoroRound
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
@@ -42,7 +43,8 @@ class PomodoroTimer(context: Context) {
             saveNotice()
         }
         mutableState.value = after
-        if (before.phase != after.phase || before.completedFocusSessions != after.completedFocusSessions) save(after)
+        if (before.phase != after.phase || before.completedFocusSessions != after.completedFocusSessions ||
+            before.roundIndex != after.roundIndex || before.roundResults != after.roundResults) save(after)
         scheduleTick()
     }
 
@@ -64,19 +66,32 @@ class PomodoroTimer(context: Context) {
             .putLong("remaining_ms", state.remainingMs).putBoolean("running", state.running)
             .putInt("completed", state.completedFocusSessions).putLong("deadline_ms", state.deadlineMs)
             .putInt("focus_minutes", state.config.focusMinutes).putInt("short_break_minutes", state.config.shortBreakMinutes)
-            .putInt("long_break_minutes", state.config.longBreakMinutes).apply()
+            .putInt("long_break_minutes", state.config.longBreakMinutes).putInt("repeat_count", state.config.repeatCount)
+            .putInt("round_index", state.roundIndex).putString("round_results", state.roundResults.joinToString(",") { it.name })
+            .putBoolean("focus_started", state.focusStarted).apply()
     }
 
     private fun restore(): PomodoroSession = runCatching {
         val phase = PomodoroPhase.valueOf(preferences.getString("phase", PomodoroPhase.FOCUS.name)!!)
         val running = preferences.getBoolean("running", false)
-        val deadline = preferences.getLong("deadline_ms", 0)
-        val config = PomodoroConfig(preferences.getInt("focus_minutes", 25), preferences.getInt("short_break_minutes", 5),
-            preferences.getInt("long_break_minutes", 15))
+        val config = PomodoroConfig(preferences.getInt("focus_minutes", 25).coerceIn(20, 60),
+            preferences.getInt("short_break_minutes", 5).coerceIn(5, 10),
+            preferences.getInt("long_break_minutes", 30).coerceIn(30, 60), preferences.getInt("repeat_count", 4).coerceIn(1, 4))
+        val now = System.currentTimeMillis()
+        val deadline = preferences.getLong("deadline_ms", 0).let { if (it > now + config.durationMs(phase)) now + config.durationMs(phase) else it }
+        val completed = preferences.getInt("completed", 0).coerceAtLeast(0)
+        val legacyRound = if (phase == PomodoroPhase.FOCUS) completed % config.repeatCount else (completed - 1).coerceAtLeast(0) % config.repeatCount
+        val round = preferences.getInt("round_index", legacyRound).coerceIn(0, config.repeatCount - 1)
+        val results = runCatching { preferences.getString("round_results", "")!!.split(',').map(PomodoroRound::valueOf)
+            .takeIf { it.size == config.repeatCount } }.getOrNull()
+            ?: List(config.repeatCount) { if (completed > 0 && (it < round || (phase != PomodoroPhase.FOCUS && it == round))) PomodoroRound.COMPLETED else PomodoroRound.PENDING }
         PomodoroSession(config = config, phase = phase,
             remainingMs = preferences.getLong("remaining_ms", config.durationMs(phase)).coerceIn(1, config.durationMs(phase)),
-            running = running && deadline > 0, completedFocusSessions = preferences.getInt("completed", 0).coerceAtLeast(0),
-            deadlineMs = deadline)
+            running = running && deadline > 0, completedFocusSessions = completed, deadlineMs = deadline,
+            roundIndex = round, roundResults = results,
+            focusStarted = phase == PomodoroPhase.FOCUS && preferences.getBoolean("focus_started",
+                running || preferences.getLong("remaining_ms", config.durationMs(phase)) <
+                    preferences.getInt("focus_minutes", 25).toLong() * 60_000L))
     }.getOrDefault(PomodoroSession())
 
     private fun saveNotice() {

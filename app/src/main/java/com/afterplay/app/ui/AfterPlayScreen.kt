@@ -1,7 +1,10 @@
 package com.afterplay.app.ui
 
 import android.content.res.Configuration
+import android.content.ClipData
+import android.content.ClipboardManager
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -23,6 +26,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -51,6 +59,9 @@ fun AfterPlayScreen(model: PlayerViewModel, onAddQuickSettingsTile: () -> Unit =
     val timer by model.pomodoro.collectAsStateWithLifecycle()
     val focusLocked by model.focusLocked.collectAsStateWithLifecycle()
     val needsScreenLock by model.needsScreenLock.collectAsStateWithLifecycle()
+    val updateStatus by model.updateStatus.collectAsStateWithLifecycle()
+    val uriHandler = LocalUriHandler.current
+    val context = LocalContext.current
     val view = LocalView.current
     val keepScreenOn = timer.running
     DisposableEffect(view, keepScreenOn) {
@@ -74,6 +85,7 @@ fun AfterPlayScreen(model: PlayerViewModel, onAddQuickSettingsTile: () -> Unit =
     var addTo by rememberSaveable { mutableStateOf<String?>(null) }
     var linkText by rememberSaveable { mutableStateOf("") }
     var showAbout by rememberSaveable { mutableStateOf(false) }
+    var showDiagnostics by rememberSaveable { mutableStateOf(false) }
     var transfer by remember { mutableStateOf<Pair<String, Track>?>(null) }
     val snackbar = remember { SnackbarHostState() }
 
@@ -93,7 +105,6 @@ fun AfterPlayScreen(model: PlayerViewModel, onAddQuickSettingsTile: () -> Unit =
                 Text("이어듣기", fontWeight = FontWeight.Bold, fontSize = 21.sp)
                 Spacer(Modifier.weight(1f))
                 if (!workspace) FocusLockButton(focusLocked, onLock = { model.lockFocus() }, tint = Muted)
-                if (workspace) Text("AFTERPLAY", fontSize = 10.sp, letterSpacing = 2.sp, color = Muted)
                 IconButton(onClick = { settingsTab = 0 }) { Icon(Icons.Rounded.Palette, "앱 설정", tint = Muted) }
                 IconButton(onClick = { showAbout = true }) { Icon(Icons.Rounded.Info, "앱 정보", tint = Muted) }
             }
@@ -102,11 +113,13 @@ fun AfterPlayScreen(model: PlayerViewModel, onAddQuickSettingsTile: () -> Unit =
             LazyColumn(Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                if (workspace) item { libraryHeader() }
                 item {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("내 재생목록", fontWeight = FontWeight.Bold, fontSize = 19.sp)
                         Spacer(Modifier.weight(1f))
+                        if (workspace) IconButton(onClick = { showAbout = true }, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Rounded.Info, "앱 정보", tint = Muted, modifier = Modifier.size(20.dp))
+                        }
                         TextButton(onClick = { newList = true }) {
                             Icon(Icons.Rounded.Add, null, Modifier.size(18.dp)); Text(" 새 목록")
                         }
@@ -114,6 +127,10 @@ fun AfterPlayScreen(model: PlayerViewModel, onAddQuickSettingsTile: () -> Unit =
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(lists, key = { it.id }) { list ->
                             FilterChip(selected = list.id == selectedId, onClick = { model.selectPlaylist(list.id) },
+                                border = if (list.id == playback.playlistId) BorderStroke(1.dp, Accent) else null,
+                                modifier = Modifier.testTag("playlist_${list.id}").semantics {
+                                    if (list.id == playback.playlistId) stateDescription = "현재 재생 목록"
+                                },
                                 label = { Text(list.name, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 180.dp)) },
                                 leadingIcon = { Icon(Icons.AutoMirrored.Rounded.PlaylistPlay, null, Modifier.size(18.dp)) })
                         }
@@ -146,7 +163,7 @@ fun AfterPlayScreen(model: PlayerViewModel, onAddQuickSettingsTile: () -> Unit =
                             }
                             OutlinedButton(onClick = { addTo = list.id; linkText = ""; model.addError.value = null },
                                 modifier = Modifier.weight(1f).height(48.dp)) {
-                                Icon(Icons.Rounded.Add, null, Modifier.size(20.dp)); Text("영상 추가")
+                                Icon(Icons.Rounded.Add, null, Modifier.size(20.dp)); Text("목록추가")
                             }
                         }
                     }
@@ -229,18 +246,17 @@ fun AfterPlayScreen(model: PlayerViewModel, onAddQuickSettingsTile: () -> Unit =
                 }) { Text("추가") } },
                 dismissButton = { TextButton(enabled = !adding, onClick = { addTo = null }) { Text("취소") } })
         }
-        if (showAbout) AlertDialog(onDismissRequest = { showAbout = false },
-            title = { Text("이어듣기 · AFTERPLAY") },
-            text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("화면을 끄거나 다른 앱으로 이동해도 오디오가 재생됩니다. 알림과 잠금화면에서 재생을 제어할 수 있어요.")
-                TextButton(onClick = { showAbout = false; onAddQuickSettingsTile() }) {
-                    Icon(Icons.Rounded.Add, null, Modifier.size(18.dp))
-                    Text("퀵 설정에 실행 버튼 추가")
-                }
-                Text("인터넷 연결이 필요합니다. 공개된 일반 영상만 지원하며, 비공개·유료·로그인 필요 영상과 실시간 방송은 지원하지 않습니다.", fontSize = 12.sp, color = Muted)
-                Text("YouTube 공식 앱이 아닙니다. 유튜브 변경에 따라 재생이 중단될 수 있습니다.", fontSize = 12.sp, color = Muted)
-                Text("오픈소스: NewPipe Extractor (GPL-3.0-or-later), AndroidX Media3 / Compose, OkHttp, Coil (Apache-2.0).\n앱 소스: GPL-3.0-or-later · 버전 1.5.2", fontSize = 11.sp, color = Muted)
-            } }, confirmButton = { TextButton(onClick = { showAbout = false }) { Text("확인") } })
+        if (showAbout) AppInfoDialog(updateStatus, model::checkForUpdates, uriHandler::openUri,
+            onAddQuickSettingsTile, onDismiss = { showAbout = false },
+            onShowDiagnostics = { showAbout = false; showDiagnostics = true })
+        if (showDiagnostics) {
+            val snapshot by model.diagnostics.collectAsStateWithLifecycle()
+            val network by model.diagnosticNetwork.collectAsStateWithLifecycle()
+            LaunchedEffect(Unit) { model.refreshDiagnostics() }
+            DiagnosticsDialog(snapshot, network, model::refreshDiagnostics,
+                onCopy = { context.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("AfterPlay 문제 확인", model.diagnosticReport())) },
+                onClear = model::clearDiagnostics, onDismiss = { showDiagnostics = false; showAbout = true })
+        }
         }
         if (needsScreenLock && !focusLocked) AlertDialog(
             onDismissRequest = { model.needsScreenLock.value = false },
@@ -299,22 +315,7 @@ private fun PlayerPanel(state: PlaybackUi, model: PlayerViewModel) {
     var showSleepTimer by rememberSaveable { mutableStateOf(false) }
     Surface(color = Surface, tonalElevation = 4.dp, shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)) {
         Column(Modifier.navigationBarsPadding().padding(horizontal = 24.dp, vertical = 12.dp)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = { showSleepTimer = true }, enabled = state.connected,
-                    contentPadding = PaddingValues(horizontal = 0.dp)) {
-                    Icon(Icons.Rounded.Bedtime, "수면 모드 설정", Modifier.size(18.dp),
-                        tint = if (state.sleepTimerActive) Accent else Muted)
-                    Spacer(Modifier.width(6.dp))
-                    Text("수면 모드", color = if (state.sleepTimerActive) Accent else Muted, fontSize = 12.sp)
-                }
-                Spacer(Modifier.weight(1f))
-                if (state.sleepTimerActive) {
-                    Text("${clockTime(state.sleepRemainingMs + 999)} 후 종료", color = Accent, fontSize = 12.sp)
-                    IconButton(onClick = model::cancelSleepTimer, modifier = Modifier.size(36.dp)) {
-                        Icon(Icons.Rounded.Close, "수면 타이머 해제", tint = Muted, modifier = Modifier.size(18.dp))
-                    }
-                }
-            }
+            SleepTimerControls(state, onOpen = { showSleepTimer = true }, onCancel = model::cancelSleepTimer)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Artwork(state.artwork, Modifier.size(42.dp))
                 Column(Modifier.weight(1f)) {
@@ -322,7 +323,6 @@ private fun PlayerPanel(state: PlaybackUi, model: PlayerViewModel) {
                     Text(if (state.buffering) "오디오를 불러오는 중…" else state.artist,
                         maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 11.sp, color = Muted)
                 }
-                if (state.id.isNotEmpty()) IconButton(onClick = model::stop) { Icon(Icons.Rounded.Close, "재생 종료", tint = Muted, modifier = Modifier.size(19.dp)) }
             }
             if (state.id.isNotEmpty()) {
                 var dragged by remember(state.id) { mutableStateOf<Float?>(null) }
@@ -351,6 +351,26 @@ private fun PlayerPanel(state: PlaybackUi, model: PlayerViewModel) {
         }
     }
     if (showSleepTimer) SleepTimerDialog(state, model) { showSleepTimer = false }
+}
+
+@Composable
+internal fun SleepTimerControls(state: PlaybackUi, onOpen: () -> Unit, onCancel: () -> Unit, modifier: Modifier = Modifier) {
+    Row(modifier.fillMaxWidth().testTag("sleep_timer_controls"), verticalAlignment = Alignment.CenterVertically) {
+        TextButton(onClick = onOpen, enabled = state.connected,
+            contentPadding = PaddingValues(horizontal = 0.dp)) {
+            Icon(Icons.Rounded.Bedtime, "수면 모드 설정", Modifier.size(18.dp),
+                tint = if (state.sleepTimerActive) Accent else Muted)
+            Spacer(Modifier.width(6.dp))
+            Text("수면 모드", color = if (state.sleepTimerActive) Accent else Muted, fontSize = 12.sp)
+        }
+        Spacer(Modifier.weight(1f))
+        if (state.sleepTimerActive) {
+            Text("${clockTime(state.sleepRemainingMs + 999)} 후 종료", color = Accent, fontSize = 12.sp)
+            IconButton(onClick = onCancel, modifier = Modifier.size(36.dp)) {
+                Icon(Icons.Rounded.Close, "수면 타이머 해제", tint = Muted, modifier = Modifier.size(18.dp))
+            }
+        }
+    }
 }
 
 @Composable

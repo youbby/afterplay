@@ -52,20 +52,27 @@ class AppSettingsTest {
     @Test fun durationSettingsValidatePersistAndResetCurrentTimer() {
         landscape()
         compose.onNodeWithContentDescription("뽀모도로 시간 설정").performClick()
+        compose.onNodeWithText("뽀모도로 설정").assertIsDisplayed()
+        compose.onNodeWithText("테마").assertDoesNotExist()
+        compose.onAllNodesWithTag("theme_BURGUNDY").assertCountEquals(0)
         compose.onNodeWithTag("focus_minutes").performTextReplacement("0")
-        compose.onNodeWithText("시간 저장").assertIsNotEnabled()
+        compose.onNodeWithText("저장").assertIsNotEnabled()
         compose.onNodeWithTag("focus_minutes").performTextReplacement("40")
         compose.onNodeWithTag("short_break_minutes").performScrollTo().performTextReplacement("7")
-        compose.onNodeWithTag("long_break_minutes").performScrollTo().performTextReplacement("20")
+        compose.onNodeWithTag("repeat_count").performScrollTo().performTextReplacement("5")
+        compose.onNodeWithText("저장").assertIsNotEnabled()
+        compose.onNodeWithTag("repeat_count").performScrollTo().performTextReplacement("2")
+        compose.onNodeWithTag("long_break_minutes").performScrollTo().performTextReplacement("30")
         compose.onNodeWithTag("long_break_minutes").performImeAction()
-        compose.onNodeWithText("시간 저장").performClick()
+        compose.onNodeWithText("저장").performClick()
         compose.onNodeWithTag("pomodoro_remaining").assertTextEquals("40:00")
+        compose.onNodeWithTag("pomodoro_round_2").assertDoesNotExist()
         togglePomodoro()
         assertTrue(app.pomodoro.state.value.running)
         compose.onNodeWithContentDescription("뽀모도로 시간 설정").performClick()
         compose.onNodeWithTag("focus_minutes").performTextReplacement("50")
         compose.onNodeWithTag("focus_minutes").performImeAction()
-        compose.onNodeWithText("시간 저장").performClick()
+        compose.onNodeWithText("저장").performClick()
         assertFalse(app.pomodoro.state.value.running)
         compose.onNodeWithTag("pomodoro_remaining").assertTextEquals("50:00")
         compose.onNodeWithContentDescription("뽀모도로 초기화").performClick()
@@ -73,7 +80,41 @@ class AppSettingsTest {
         compose.activityRule.scenario.recreate()
         compose.onNodeWithTag("pomodoro_remaining").assertTextEquals("50:00")
         instrumentation.runOnMainSync {
-            assertEquals(PomodoroConfig(50, 7, 20), PomodoroTimer(context).state.value.config)
+            assertEquals(PomodoroConfig(50, 7, 30, 2), PomodoroTimer(context).state.value.config)
+        }
+        compose.onNodeWithContentDescription("뽀모도로 시간 설정").performClick()
+        compose.onNodeWithTag("focus_minutes").performTextReplacement("60")
+        compose.onNodeWithText("취소").performClick()
+        assertEquals(50, app.pomodoro.state.value.config.focusMinutes)
+    }
+
+    @Test fun legacySettingsAreClampedIntoTheNewRangesWithoutInventingSkippedCompletions() {
+        val prefs = context.getSharedPreferences("pomodoro_v1", android.content.Context.MODE_PRIVATE)
+        prefs.edit().clear().putString("phase", "SHORT_BREAK").putInt("focus_minutes", 180)
+            .putInt("short_break_minutes", 60).putInt("long_break_minutes", 15)
+            .putLong("remaining_ms", 60_000).putBoolean("running", false).putInt("completed", 0).commit()
+        instrumentation.runOnMainSync {
+            val restored = PomodoroTimer(context).state.value
+            assertEquals(PomodoroConfig(60, 10, 30, 4), restored.config)
+            assertTrue(restored.roundResults.all { it == com.afterplay.app.data.PomodoroRound.PENDING })
+            prefs.edit().putString("phase", "FOCUS").putLong("remaining_ms", 90 * 60_000L).commit()
+            val pausedFocus = PomodoroTimer(context).state.value
+            assertTrue(pausedFocus.focusStarted)
+            assertEquals(60 * 60_000L, pausedFocus.remainingMs)
+        }
+    }
+
+    @Test fun interruptedRoundHistorySurvivesTimerRestore() {
+        instrumentation.runOnMainSync {
+            app.pomodoro.configure(PomodoroConfig(20, 5, 30, 3))
+            app.pomodoro.toggle()
+            app.pomodoro.skip()
+            app.pomodoro.toggle()
+            val restored = PomodoroTimer(context).state.value
+            assertFalse(restored.running)
+            assertEquals(3, restored.config.repeatCount)
+            assertEquals(app.pomodoro.state.value.roundResults, restored.roundResults)
+            assertEquals(com.afterplay.app.data.PomodoroRound.SKIPPED, restored.roundResults.first())
         }
     }
 

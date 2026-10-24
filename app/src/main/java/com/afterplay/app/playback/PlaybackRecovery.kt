@@ -20,6 +20,7 @@ internal class PlaybackRecovery(
     private val player: Player,
     private val handler: Handler,
     private val invalidate: (String) -> Unit,
+    private val onRecovery: (String) -> Unit = {},
 ) : Player.Listener {
     private var failures = 0
     private var skippedFailedItem = false
@@ -39,12 +40,14 @@ internal class PlaybackRecovery(
         }
         val skip = failures >= 3
         if (skip && (skippedFailedItem || nextIndex == null)) {
+            onRecovery("연결 시도 $failures/3 · 자동 복구 중단")
             // Keep the terminal error visible and allow the play button to start a fresh budget.
             player.pause()
             reset()
             return
         }
         val failedItem = player.currentMediaItem
+        onRecovery("연결 시도 $failures/3 · ${if (skip) "다음 곡으로 이동" else "1초 후 다시 연결"}")
         val failedIndex = player.currentMediaItemIndex
         pending = Runnable {
             pending = null

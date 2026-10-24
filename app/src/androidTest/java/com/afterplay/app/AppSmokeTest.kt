@@ -19,7 +19,7 @@ class AppSmokeTest {
         compose.onNodeWithText("재생목록 이름").performTextInput("밤 산책 테스트")
         compose.onNodeWithText("저장").performClick()
         compose.waitUntil(5_000) { compose.onAllNodesWithText("밤 산책 테스트").fetchSemanticsNodes().size == 2 }
-        compose.onNodeWithText("영상 추가").performScrollTo().performClick()
+        compose.onNodeWithText("목록추가").performScrollTo().performClick()
         compose.onNodeWithText("영상 링크").performTextInput("https://example.com/not-youtube")
         compose.onNodeWithText("추가", useUnmergedTree = true).performClick()
         compose.onNodeWithText("유튜브 영상 링크를 입력해 주세요. 재생목록 주소만으로는 추가할 수 없습니다.").assertIsDisplayed()
@@ -38,14 +38,14 @@ class AppSmokeTest {
         compose.onNodeWithText("재생목록 이름").performTextInput("실제 영상 테스트")
         compose.onNodeWithText("저장").performClick()
         compose.waitUntil(5_000) { compose.onAllNodesWithText("실제 영상 테스트").fetchSemanticsNodes().size == 2 }
-        compose.onNodeWithText("영상 추가").performScrollTo().performClick()
+        compose.onNodeWithText("목록추가").performScrollTo().performClick()
         compose.onNodeWithText("영상 링크").performTextInput(track.url)
         compose.onNodeWithText("추가", useUnmergedTree = true).performClick()
         compose.waitUntil(60_000) { compose.onAllNodesWithText(track.title).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText(track.title).performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("전체 재생").performScrollTo().performClick()
         compose.waitUntil(30_000) { compose.onAllNodesWithContentDescription("일시정지").fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithContentDescription("재생 종료").performClick()
+        compose.onNodeWithContentDescription("일시정지").performClick()
         compose.onNodeWithContentDescription("재생목록 관리").performScrollTo().performClick()
         compose.onNodeWithText("재생목록 삭제").performClick()
         compose.onNodeWithText("삭제", useUnmergedTree = true).performClick()

@@ -1,6 +1,7 @@
 package com.afterplay.app.ui
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -17,6 +18,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -34,6 +36,7 @@ import com.afterplay.app.data.Playlist
 import com.afterplay.app.data.PomodoroPhase
 import com.afterplay.app.data.PomodoroSession
 import com.afterplay.app.data.PomodoroNotice
+import com.afterplay.app.data.PomodoroRound
 import kotlinx.coroutines.delay
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
@@ -48,21 +51,29 @@ internal fun LandscapeWorkspace(
     onSettings: (Int) -> Unit,
 ) {
     var showLibrary by rememberSaveable { mutableStateOf(false) }
+    val locked by model.focusLocked.collectAsStateWithLifecycle()
     Row(Modifier.fillMaxSize().testTag("landscape_workspace").padding(12.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Surface(Modifier.weight(1f).fillMaxHeight().testTag("compact_player"),
             shape = RoundedCornerShape(24.dp), color = Surface) {
-            if (showLibrary) {
-                Column {
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { showLibrary = false }) {
-                            Icon(Icons.AutoMirrored.Rounded.ArrowBack, "현재 재생으로 돌아가기")
-                        }
-                        Text("재생목록", fontWeight = FontWeight.SemiBold)
+            Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.GraphicEq, null, tint = Accent, modifier = Modifier.size(22.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("이어듣기", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Spacer(Modifier.weight(1f))
+                    FocusLockButton(locked, onLock = { model.lockFocus() }, tint = Muted)
+                    IconButton(onClick = { onSettings(0) }) { Icon(Icons.Rounded.Palette, "앱 설정", tint = Muted) }
+                    IconButton(onClick = { showLibrary = !showLibrary }) {
+                        Icon(if (showLibrary) Icons.AutoMirrored.Rounded.ArrowBack else Icons.AutoMirrored.Rounded.PlaylistPlay,
+                            if (showLibrary) "현재 재생으로 돌아가기" else "재생목록 열기", tint = Muted)
                     }
-                    Box(Modifier.weight(1f)) { libraryContent() }
                 }
-            } else CompactPlayer(playback, model, selected, onLibrary = { showLibrary = true }, onSettings = { onSettings(0) })
+                Box(Modifier.weight(1f, fill = false).fillMaxWidth()) {
+                    if (showLibrary) libraryContent() else CompactPlayer(playback, model, selected)
+                }
+            }
         }
         Box(Modifier.weight(1f).fillMaxHeight()) {
             ClockAndPomodoro(model, onSettings = { onSettings(1) })
@@ -71,22 +82,13 @@ internal fun LandscapeWorkspace(
 }
 
 @Composable
-private fun CompactPlayer(state: PlaybackUi, model: PlayerViewModel, selected: Playlist?, onLibrary: () -> Unit, onSettings: () -> Unit) {
+private fun CompactPlayer(state: PlaybackUi, model: PlayerViewModel, selected: Playlist?) {
     var showSleep by rememberSaveable { mutableStateOf(false) }
     var dragged by remember(state.id) { mutableStateOf<Float?>(null) }
     val hasItem = state.id.isNotEmpty()
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Rounded.GraphicEq, null, tint = Accent, modifier = Modifier.size(22.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("이어듣기", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            Spacer(Modifier.weight(1f))
-            IconButton(onClick = onSettings) { Icon(Icons.Rounded.Palette, "앱 설정", tint = Muted) }
-            IconButton(onClick = onLibrary) {
-                Icon(Icons.AutoMirrored.Rounded.PlaylistPlay, "재생목록 열기", tint = Muted)
-            }
-        }
+    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        SleepTimerControls(state, onOpen = { showSleep = true }, onCancel = model::cancelSleepTimer)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Artwork(state.artwork, Modifier.size(72.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -120,16 +122,6 @@ private fun CompactPlayer(state: PlaybackUi, model: PlayerViewModel, selected: P
             Control(if (state.repeat == Player.REPEAT_MODE_ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
                 when (state.repeat) { Player.REPEAT_MODE_ONE -> "한 곡 반복"; Player.REPEAT_MODE_ALL -> "전체 반복"; else -> "반복 꺼짐" },
                 model::repeat, state.repeat != Player.REPEAT_MODE_OFF, hasItem)
-        }
-        HorizontalDivider(color = Muted.copy(alpha = .12f))
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = { showSleep = true }, enabled = state.connected, contentPadding = PaddingValues(horizontal = 0.dp)) {
-                Icon(Icons.Rounded.Bedtime, null, Modifier.size(16.dp), tint = if (state.sleepTimerActive) Accent else Muted)
-                Spacer(Modifier.width(6.dp))
-                Text(if (state.sleepTimerActive) "${clockTime(state.sleepRemainingMs + 999)} 후 종료" else "수면 모드", fontSize = 11.sp)
-            }
-            Spacer(Modifier.weight(1f))
-            if (hasItem) IconButton(onClick = model::stop) { Icon(Icons.Rounded.Close, "재생 종료", tint = Muted, modifier = Modifier.size(18.dp)) }
         }
         state.error?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 11.sp) }
     }
@@ -180,7 +172,6 @@ internal fun ClockAndPomodoro(model: PlayerViewModel, onSettings: () -> Unit) {
 
 @Composable
 private fun PomodoroPanel(timer: PomodoroSession, notice: PomodoroNotice?, model: PlayerViewModel, modifier: Modifier, onSettings: () -> Unit) {
-    val locked by model.focusLocked.collectAsStateWithLifecycle()
     val palette = LocalPalette.current
     val accent = if (timer.phase == PomodoroPhase.FOCUS) Accent else palette.breakAccent
     var inverted by remember { mutableStateOf(false) }
@@ -199,7 +190,6 @@ private fun PomodoroPanel(timer: PomodoroSession, notice: PomodoroNotice?, model
         border = BorderStroke(1.dp, accent.copy(alpha = .25f))) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val compact = maxHeight < 280.dp
-            val showDetails = maxHeight >= 180.dp
             val preferredSize = if (maxHeight < 160.dp) 56f else if (compact) 64f else 88f
             val scale = androidx.compose.ui.platform.LocalDensity.current.fontScale
             val digits = clockTime(timer.remainingMs + 999).length
@@ -208,17 +198,26 @@ private fun PomodoroPanel(timer: PomodoroSession, notice: PomodoroNotice?, model
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(if (compact) 3.dp else 8.dp, Alignment.CenterVertically)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("POMODORO", color = muted, fontSize = 10.sp, letterSpacing = 2.sp)
+                    val live = timer.running && timer.phase == PomodoroPhase.FOCUS
+                    Row(Modifier.testTag("pomodoro_status_badge").semantics {
+                        stateDescription = if (live) "ON AIR · 집중 진행 중" else "${timer.phase.label} · 일반 표시"
+                    }.shadow(if (live) 6.dp else 0.dp, RoundedCornerShape(6.dp),
+                        ambientColor = foreground.copy(alpha = .3f), spotColor = foreground.copy(alpha = .3f))
+                        .background(if (live) foreground else foreground.copy(alpha = .07f), RoundedCornerShape(6.dp))
+                        .border(1.dp, foreground.copy(alpha = if (live) 1f else .2f), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 12.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        if (live) Box(Modifier.size(6.dp).background(cardColor, CircleShape))
+                        Text("집중", color = if (live) cardColor else muted,
+                            fontWeight = if (live) FontWeight.ExtraBold else FontWeight.Medium, fontSize = 14.sp,
+                            letterSpacing = if (live) 2.sp else 0.sp, modifier = Modifier.testTag("pomodoro_phase"))
+                    }
                     Spacer(Modifier.weight(1f))
-                    FocusLockButton(locked, onLock = { model.lockFocus() }, tint = muted)
                     IconButton(onClick = onSettings, modifier = Modifier.size(30.dp)) {
                         Icon(Icons.Rounded.Tune, "뽀모도로 시간 설정", tint = muted, modifier = Modifier.size(18.dp))
                     }
-                    Text(timer.phase.label, color = foreground, fontWeight = FontWeight.SemiBold, fontSize = 12.sp,
-                        modifier = Modifier.background(foreground.copy(alpha = .1f), RoundedCornerShape(12.dp))
-                            .padding(horizontal = 10.dp, vertical = 4.dp).testTag("pomodoro_phase"))
                 }
-                // Reserve the lock header even when the timer controls need to scroll.
+                // Keep the timer heading visible when its controls need to scroll.
                 Column(Modifier.weight(1f, fill = false).fillMaxWidth().verticalScroll(rememberScrollState()),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(if (compact) 3.dp else 8.dp)) {
@@ -226,11 +225,13 @@ private fun PomodoroPanel(timer: PomodoroSession, notice: PomodoroNotice?, model
                         fontWeight = FontWeight.Medium, color = foreground, fontSize = timerSize, maxLines = 1,
                         modifier = Modifier.testTag("pomodoro_remaining"))
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        repeat(4) { index ->
-                            Box(Modifier.size(6.dp).background(if (index < timer.round) foreground else muted.copy(alpha = .2f), CircleShape))
+                        timer.roundResults.forEachIndexed { index, result ->
+                            Text(result.symbol, fontSize = 18.sp, fontWeight = FontWeight.SemiBold,
+                                color = if (result == PomodoroRound.PENDING) muted else foreground,
+                                modifier = Modifier.testTag("pomodoro_round_$index").semantics {
+                                    contentDescription = "${index + 1}회차 ${result.label}"
+                                })
                         }
-                        Text("${timer.round}/4회차 · ${timer.completedFocusSessions}회 집중 완료", color = muted, fontSize = 10.sp,
-                            modifier = Modifier.padding(start = 5.dp))
                     }
                     Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -247,9 +248,6 @@ private fun PomodoroPanel(timer: PomodoroSession, notice: PomodoroNotice?, model
                             Icon(Icons.Rounded.SkipNext, "다음 뽀모도로 단계", tint = muted)
                         }
                     }
-                    if (showDetails) Text(if (notice != null) "${notice.completedPhase.label} 완료 · ${timer.phase.label} 시작"
-                        else "집중 ${timer.config.focusMinutes}분 · 휴식 ${timer.config.shortBreakMinutes}분 · 4회 후 ${timer.config.longBreakMinutes}분 휴식",
-                        color = muted, fontSize = 10.sp, maxLines = 2, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 }
             }
         }
