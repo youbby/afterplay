@@ -207,7 +207,6 @@ private fun PomodoroPanel(timer: PomodoroSession, notice: PomodoroNotice?, model
                         .border(1.dp, foreground.copy(alpha = if (live) 1f else .2f), RoundedCornerShape(6.dp))
                         .padding(horizontal = 12.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        if (live) Box(Modifier.size(6.dp).background(cardColor, CircleShape))
                         Text("집중", color = if (live) cardColor else muted,
                             fontWeight = if (live) FontWeight.ExtraBold else FontWeight.Medium, fontSize = 14.sp,
                             letterSpacing = if (live) 2.sp else 0.sp, modifier = Modifier.testTag("pomodoro_phase"))

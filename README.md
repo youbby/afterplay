@@ -74,7 +74,7 @@ Android Studio에서 이 폴더를 열거나 JDK 17 이상과 Android SDK 36을 
 
 Android Studio의 기본 JDK 및 SDK 경로는 스크립트가 자동으로 찾습니다. 다른 위치에 설치했다면 `JAVA_HOME`, `ANDROID_HOME`을 지정하세요. macOS/Linux에서는 `./gradlew assembleDebug testDebugUnitTest lintDebug`를 사용할 수 있습니다.
 
-설치 파일은 `artifacts/AfterPlay-1.6.0-debug.apk`와 `app/build/outputs/apk/debug/app-debug.apk`에 생성됩니다. 개인 설치용 debug 서명을 사용합니다. 동일한 기기에 업데이트하려면 동일한 개발용 서명 키로 빌드해야 합니다. 스토어 제출용 서명은 포함하지 않습니다.
+설치 파일은 `artifacts/AfterPlay-1.6.1-debug.apk`와 `app/build/outputs/apk/debug/app-debug.apk`에 생성됩니다. 개인 설치용 debug 서명을 사용합니다. 동일한 기기에 업데이트하려면 동일한 개발용 서명 키로 빌드해야 합니다. 스토어 제출용 서명은 포함하지 않습니다.
 
 공개 배포용 APK는 기존 배포 키를 한 번 등록한 뒤 여기서 빌드할 수 있습니다. Windows PowerShell에서 다음을 실행하면 비밀번호 입력창이 열립니다. 키 비밀번호가 저장소 비밀번호와 같으면 두 번째 칸은 비워 둡니다.
 
