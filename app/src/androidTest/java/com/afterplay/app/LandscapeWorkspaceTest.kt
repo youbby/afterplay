@@ -85,7 +85,7 @@ class LandscapeWorkspaceTest {
     private fun assertLandscapeLocked() {
         compose.activityRule.scenario.onActivity {
             assertEquals(android.content.res.Configuration.ORIENTATION_LANDSCAPE, it.resources.configuration.orientation)
-            assertEquals(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE, it.requestedOrientation)
+            assertEquals(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE, it.requestedOrientation)
         }
     }
 

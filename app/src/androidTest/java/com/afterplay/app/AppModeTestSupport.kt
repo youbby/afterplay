@@ -23,7 +23,7 @@ internal fun awaitAppModeForTest(
     mode: AppMode,
 ) {
     val expected = if (mode == AppMode.POMODORO) Configuration.ORIENTATION_LANDSCAPE else Configuration.ORIENTATION_PORTRAIT
-    val requested = if (mode == AppMode.POMODORO) ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+    val requested = if (mode == AppMode.POMODORO) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
     val until = System.currentTimeMillis() + 15_000
     var ready = false
     while (!ready && System.currentTimeMillis() < until) {

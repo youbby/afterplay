@@ -46,7 +46,8 @@ class MainActivity : FragmentActivity() {
             onThemeChanged = ::updateSystemBars, onUnlockFocus = ::unlockFocus) }
     }
     private fun updateModeOrientation(mode: AppMode) {
-        val orientation = if (mode == AppMode.POMODORO) ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        // Keep Pomodoro in landscape while allowing either charging-port direction.
+        val orientation = if (mode == AppMode.POMODORO) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
             else ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         if (requestedOrientation != orientation) requestedOrientation = orientation
     }
