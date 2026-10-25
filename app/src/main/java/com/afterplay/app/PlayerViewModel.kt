@@ -66,6 +66,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val _playback = MutableStateFlow(PlaybackUi())
     val playback = _playback.asStateFlow()
     val pomodoro = app.pomodoro.state
+    val hyperlapse = app.hyperlapse
     val pomodoroNotice = app.pomodoro.notice
     val focusLocked = app.focusGuard.locked
     val appMode = app.appMode.state
@@ -95,14 +96,19 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
     fun setTheme(preset: ThemePreset) = app.appearance.select(preset)
-    fun configurePomodoro(config: PomodoroConfig) { if (!focusLocked.value) app.pomodoro.configure(config) }
+    fun configurePomodoro(config: PomodoroConfig) {
+        if (!focusLocked.value) { hyperlapse.finish(); app.pomodoro.configure(config) }
+    }
     fun togglePomodoro() {
         if (focusLocked.value) return
-        if (!pomodoro.value.running) lockFocus()
+        if (!pomodoro.value.running) {
+            if (!hyperlapse.prepareStart()) return
+            lockFocus()
+        }
         app.pomodoro.toggle()
     }
     fun lockFocus() = app.focusGuard.lock()
-    fun resetPomodoro() { if (!focusLocked.value) app.pomodoro.reset() }
+    fun resetPomodoro() { if (!focusLocked.value) { hyperlapse.finish(); app.pomodoro.reset() } }
     fun skipPomodoro() { if (!focusLocked.value) app.pomodoro.skip() }
     fun refreshPomodoro() = app.pomodoro.refresh()
     private var controller: MediaController? = null

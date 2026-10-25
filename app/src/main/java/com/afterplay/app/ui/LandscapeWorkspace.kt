@@ -146,6 +146,7 @@ internal fun ClockAndPomodoro(model: PlayerViewModel, onSettings: () -> Unit) {
         }
         PomodoroDial(timer, notice, Modifier.weight(1f).fillMaxWidth(),
             onToggle = model::togglePomodoro, onReset = model::resetPomodoro,
-            onSkip = model::skipPomodoro, onSettings = onSettings)
+            onSkip = model::skipPomodoro, onSettings = onSettings,
+            recordingControl = { HyperlapseButton(model) })
     }
 }

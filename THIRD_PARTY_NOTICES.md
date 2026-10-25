@@ -7,7 +7,7 @@ Direct dependencies include:
 | Component | License | Source |
 | --- | --- | --- |
 | NewPipe Extractor v0.26.5 | GPL-3.0-or-later | https://github.com/TeamNewPipe/NewPipeExtractor/tree/v0.26.5 |
-| AndroidX / Compose / Media3 / DataStore | Apache-2.0 | https://android.googlesource.com/platform/frameworks/support/ |
+| AndroidX / Compose / Media3 / DataStore / CameraX | Apache-2.0 | https://android.googlesource.com/platform/frameworks/support/ |
 | Kotlin / kotlinx.coroutines | Apache-2.0 | https://github.com/JetBrains/kotlin |
 | OkHttp | Apache-2.0 | https://github.com/square/okhttp |
 | Gson | Apache-2.0 | https://github.com/google/gson |

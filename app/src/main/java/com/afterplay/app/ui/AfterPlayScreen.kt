@@ -57,6 +57,7 @@ fun AfterPlayScreen(model: PlayerViewModel, onAddQuickSettingsTile: () -> Unit =
     val timer by model.pomodoro.collectAsStateWithLifecycle()
     val focusLocked by model.focusLocked.collectAsStateWithLifecycle()
     val updateStatus by model.updateStatus.collectAsStateWithLifecycle()
+    val hyperlapse by model.hyperlapse.state.collectAsStateWithLifecycle()
     val uriHandler = LocalUriHandler.current
     val context = LocalContext.current
     val view = LocalView.current
@@ -87,6 +88,9 @@ fun AfterPlayScreen(model: PlayerViewModel, onAddQuickSettingsTile: () -> Unit =
     val snackbar = remember { SnackbarHostState() }
 
     LaunchedEffect(message) { message?.let { snackbar.showSnackbar(it); model.message.value = null } }
+    LaunchedEffect(hyperlapse.message) {
+        hyperlapse.message?.let { snackbar.showSnackbar(it); model.hyperlapse.dismissMessage() }
+    }
     LaunchedEffect(sharedLink, selected?.id) {
         if (sharedLink != null && selected != null) {
             linkText = sharedLink.orEmpty(); addTo = selected.id

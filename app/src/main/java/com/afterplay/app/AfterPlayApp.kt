@@ -19,6 +19,7 @@ class AfterPlayApp : Application() {
     val playbackStore by lazy { PlaybackStore(this) }
     val sleepTimer by lazy { SleepTimer(this) }
     val pomodoro by lazy { PomodoroTimer(this) }
+    val hyperlapse by lazy { com.afterplay.app.hyperlapse.HyperlapseController(this, pomodoro) }
     val appearance by lazy { ThemeStore(this) }
     val focusGuard by lazy { FocusGuard(this) }
     val appMode by lazy { AppModeStore(this) }

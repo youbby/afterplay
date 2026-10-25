@@ -52,6 +52,7 @@ internal fun PomodoroDial(
     onReset: () -> Unit,
     onSkip: () -> Unit,
     onSettings: () -> Unit,
+    recordingControl: @Composable () -> Unit = {},
 ) {
     val palette = LocalPalette.current
     val accent = if (timer.phase == PomodoroPhase.FOCUS) Accent else palette.breakAccent
@@ -72,6 +73,7 @@ internal fun PomodoroDial(
         shape = RoundedCornerShape(24.dp), color = cardColor, contentColor = foreground,
         border = BorderStroke(1.dp, accent.copy(alpha = .25f))) {
         BoxWithConstraints(Modifier.fillMaxSize().padding(8.dp), contentAlignment = Alignment.Center) {
+            Box(Modifier.align(Alignment.TopEnd)) { recordingControl() }
             val diameter = minOf(maxWidth, maxHeight)
             val scale = (diameter.value / 280f).coerceIn(.7f, 1.5f)
             val innerSize = diameter * .72f

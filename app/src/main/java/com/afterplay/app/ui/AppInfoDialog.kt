@@ -76,13 +76,13 @@ internal fun AppInfoDialog(status: UpdateStatus, onCheckUpdates: () -> Unit, onO
                 if (more) {
                     HorizontalDivider()
                     Text("기능 설명", fontWeight = FontWeight.SemiBold)
-                    Text("재생목록의 오디오를 화면이 꺼지거나 다른 앱을 사용하는 동안에도 재생합니다. 수면 타이머, 가로 시계·뽀모도로, 집중 잠금, 색상 프리셋을 지원합니다.", fontSize = 12.sp, color = Muted)
+                    Text("재생목록의 오디오를 화면이 꺼지거나 다른 앱을 사용하는 동안에도 재생합니다. 수면 타이머, 가로 시계·뽀모도로, 집중 잠금, 색상 프리셋, 무음 하이퍼랩스 촬영을 지원합니다.", fontSize = 12.sp, color = Muted)
                     Text("유의사항", fontWeight = FontWeight.SemiBold)
                     Text("인터넷 연결이 필요합니다. 공개된 일반 영상만 지원하며, 비공개·유료·로그인 필요 영상과 실시간 방송은 지원하지 않습니다. YouTube 공식 앱이 아닙니다.", fontSize = 12.sp, color = Muted)
                     Text("YouTube 정책 변경", fontWeight = FontWeight.SemiBold)
                     Text("YouTube 정책이나 서비스 구조가 바뀌면 재생이 중단될 수 있습니다. 이 경우 업데이트 확인에서 새 버전을 확인해 주세요.", fontSize = 12.sp, color = Muted)
                     Text("오픈소스", fontWeight = FontWeight.SemiBold)
-                    Text("NewPipe Extractor (GPL-3.0-or-later), AndroidX Media3 / Compose, OkHttp, Coil (Apache-2.0).", fontSize = 11.sp, color = Muted)
+                    Text("NewPipe Extractor (GPL-3.0-or-later), AndroidX Media3 / Compose / CameraX, OkHttp, Coil (Apache-2.0).", fontSize = 11.sp, color = Muted)
                     Text("앱 소스", fontWeight = FontWeight.SemiBold)
                     Text("AfterPlay · GPL-3.0-or-later", fontSize = 12.sp, color = Muted)
                     TextButton(onClick = { openLink("https://github.com/youbby/afterplay") }) { Text("GitHub 앱 소스 보기") }

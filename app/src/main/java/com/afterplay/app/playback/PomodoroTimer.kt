@@ -31,9 +31,10 @@ class PomodoroTimer(context: Context) {
     fun reset() = update { PomodoroSession(config = it.config) }
     fun configure(config: PomodoroConfig) = update { PomodoroSession(config = config) }
 
-    fun refresh() {
+    fun refresh() = refreshAt(System.currentTimeMillis())
+
+    internal fun refreshAt(now: Long) {
         val before = mutableState.value
-        val now = System.currentTimeMillis()
         val after = before.advance(now)
         if (before.running && now >= before.deadlineMs) {
             mutableNotice.value = PomodoroNotice.between(before, after, now)
