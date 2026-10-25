@@ -7,10 +7,12 @@ data class PomodoroNotice(val completedPhase: PomodoroPhase, val startedAtMs: Lo
     companion object {
         fun between(before: PomodoroSession, after: PomodoroSession, nowMs: Long): PomodoroNotice? {
             if (!before.running || nowMs < before.deadlineMs) return null
-            val phase = if (after.phase != PomodoroPhase.FOCUS) PomodoroPhase.FOCUS
+            val phase = if (after.finished) after.phase
+                else if (after.phase != PomodoroPhase.FOCUS) PomodoroPhase.FOCUS
                 else if (after.roundIndex == 0) PomodoroPhase.LONG_BREAK
                 else PomodoroPhase.SHORT_BREAK
-            return PomodoroNotice(phase, after.deadlineMs - after.durationMs).takeIf { it.activeAt(nowMs) }
+            val startedAt = if (after.finished) after.finishedAtMs else after.deadlineMs - after.durationMs
+            return PomodoroNotice(phase, startedAt).takeIf { it.activeAt(nowMs) }
         }
     }
 }

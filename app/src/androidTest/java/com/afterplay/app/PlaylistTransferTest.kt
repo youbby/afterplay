@@ -46,7 +46,7 @@ class PlaylistTransferTest {
             instrumentation.runOnMainSync { app.focusGuard.unlockAfterAuthentication(); app.pomodoro.reset() }
             runBlocking { app.library.update { it + source + target } }
             compose.activityRule.scenario.onActivity {
-                it.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                app.appMode.select(com.afterplay.app.data.AppMode.PLAYBACK)
                 ViewModelProvider(it)[PlayerViewModel::class.java].selectPlaylist(source.id)
             }
             instrumentation.runOnMainSync {

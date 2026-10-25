@@ -47,4 +47,15 @@ class PomodoroNoticeTest {
         assertEquals(PomodoroPhase.LONG_BREAK,
             PomodoroNotice.between(longBreak, next, longBreak.deadlineMs)?.completedPhase)
     }
+
+    @Test fun finalCompletionFlashesOnlyAtTheActualEndAndDoesNotFlashAfterALongAbsence() {
+        val timer = PomodoroSession(config = PomodoroConfig(20, 5, 30, 1)).start(start)
+        val longBreak = timer.advance(timer.deadlineMs)
+        val end = longBreak.deadlineMs
+        val finished = longBreak.advance(end + 1_000)
+        assertTrue(finished.finished)
+        assertEquals(PomodoroPhase.LONG_BREAK, PomodoroNotice.between(longBreak, finished, end + 1_000)?.completedPhase)
+        assertEquals(end, PomodoroNotice.between(longBreak, finished, end + 1_000)?.startedAtMs)
+        assertNull(PomodoroNotice.between(timer, timer.advance(end + 20_000), end + 20_000))
+    }
 }

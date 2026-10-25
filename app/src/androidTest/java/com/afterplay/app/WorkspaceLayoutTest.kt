@@ -1,6 +1,5 @@
 package com.afterplay.app
 
-import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -24,7 +23,7 @@ class WorkspaceLayoutTest {
         val app = context.applicationContext as AfterPlayApp
         instrumentation.runOnMainSync { app.focusGuard.unlockAfterAuthentication(); app.pomodoro.reset() }
         val tablet = context.resources.configuration.smallestScreenWidthDp >= 600
-        if (!tablet) compose.activityRule.scenario.onActivity { it.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE }
+        selectAppModeForTest(compose, app, com.afterplay.app.data.AppMode.POMODORO)
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("landscape_workspace").fetchSemanticsNodes().isNotEmpty() }
         compose.waitForIdle()
         val player = compose.onNodeWithTag("compact_player").fetchSemanticsNode().boundsInRoot
@@ -34,7 +33,10 @@ class WorkspaceLayoutTest {
         assertTrue(clock.right <= player.right + player.width + 100f)
         assertTrue(clock.bottom < timer.top)
         assertTrue(abs(timer.bottom - player.bottom) <= 2f)
-        if (tablet) assertTrue("Large displays should split clock and timer evenly", abs(clock.height - timer.height) <= 2f)
+        assertTrue("Compact date/time header should leave most height for the dial", clock.height < timer.height * .3f)
+        val dial = compose.onNodeWithTag("pomodoro_dial").fetchSemanticsNode().boundsInRoot
+        assertTrue("Dial must be circular", abs(dial.width - dial.height) <= 2f)
+        assertTrue(dial.left >= timer.left && dial.right <= timer.right && dial.top >= timer.top && dial.bottom <= timer.bottom)
         val clockText = compose.onNodeWithTag("wall_clock").fetchSemanticsNode().boundsInRoot
         val timerText = compose.onNodeWithTag("pomodoro_remaining").fetchSemanticsNode().boundsInRoot
         assertTrue(timerText.height > clockText.height)

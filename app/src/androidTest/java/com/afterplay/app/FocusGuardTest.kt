@@ -1,6 +1,5 @@
 package com.afterplay.app
 
-import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
@@ -11,6 +10,7 @@ import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
 import com.afterplay.app.data.FocusGuard
+import com.afterplay.app.data.AppMode
 import com.afterplay.app.data.PomodoroConfig
 import com.afterplay.app.data.PomodoroPhase
 import org.junit.*
@@ -34,22 +34,53 @@ class FocusGuardTest {
     }
 
     private fun landscape() {
-        compose.activityRule.scenario.onActivity { it.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE }
-        compose.waitUntil(10_000) { compose.onAllNodesWithTag("landscape_workspace").fetchSemanticsNodes().isNotEmpty() }
+        selectAppModeForTest(compose, app, AppMode.POMODORO)
     }
 
-    @Test fun noDeviceCredentialRequestsSetupWithoutStartingOrLocking() {
-        Assume.assumeFalse(app.focusGuard.canLock)
+    @Test fun noDeviceCredentialStartsFocusAndUnlocksWithOneTapAfterRecreation() {
+        Assume.assumeFalse(app.focusGuard.requiresAuthentication)
         landscape()
         compose.onNodeWithTag("pomodoro_toggle").performClick()
-        compose.onNodeWithText("화면 잠금을 먼저 설정해 주세요").assertIsDisplayed()
-        assertFalse(app.pomodoro.state.value.running)
+        compose.onNodeWithTag("focus_unlock").assertIsDisplayed()
+        compose.onNodeWithTag("pomodoro_toggle").assertDoesNotExist()
+        assertTrue(app.pomodoro.state.value.running)
+        assertTrue(app.focusGuard.locked.value)
+        compose.onNodeWithTag("focus_touch_blocker").performTouchInput { click(center); swipeLeft() }
+        device.pressBack()
+        assertTrue(app.focusGuard.locked.value)
+        compose.activityRule.scenario.recreate()
+        compose.onNodeWithTag("focus_unlock").assertIsDisplayed()
+        assertTrue(FocusGuard(context).locked.value)
+        compose.onNodeWithTag("focus_unlock").performClick()
+        compose.onNodeWithTag("focus_lock").assertIsDisplayed()
+        compose.onNodeWithTag("pomodoro_toggle").assertIsDisplayed()
         assertFalse(app.focusGuard.locked.value)
-        compose.onNodeWithText("취소").performClick()
+        assertFalse(FocusGuard(context).locked.value)
+        assertTrue("Unlocking controls must not pause focus", app.pomodoro.state.value.running)
+        compose.onNodeWithTag("pomodoro_toggle").performClick()
+        assertFalse(app.pomodoro.state.value.running)
+        compose.onNodeWithTag("pomodoro_toggle").performClick()
+        compose.onNodeWithTag("focus_unlock").assertIsDisplayed().performClick()
+        assertTrue(app.pomodoro.state.value.running)
+        assertFalse(app.focusGuard.locked.value)
+    }
+
+    @Test fun noDeviceCredentialCanManuallyLockAndUnlockInPortraitWithoutStartingTimer() {
+        Assume.assumeFalse(app.focusGuard.requiresAuthentication)
+        selectAppModeForTest(compose, app, AppMode.PLAYBACK)
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("focus_lock").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("focus_lock").performClick()
+        compose.onNodeWithTag("focus_unlock").assertIsDisplayed()
+        assertTrue(app.focusGuard.locked.value)
+        assertFalse(app.pomodoro.state.value.running)
+        compose.onNodeWithTag("focus_unlock").performClick()
+        compose.onNodeWithTag("focus_lock").assertIsDisplayed()
+        assertFalse(app.focusGuard.locked.value)
+        assertFalse(app.pomodoro.state.value.running)
     }
 
     @Test fun touchGuardRequiresActualDeviceCredentialAndSurvivesRecreation() {
-        Assume.assumeTrue(app.focusGuard.canLock)
+        Assume.assumeTrue(app.focusGuard.requiresAuthentication)
         landscape()
         val lockBounds = compose.onNodeWithTag("focus_lock").fetchSemanticsNode().boundsInRoot
         val playerBounds = compose.onNodeWithTag("compact_player").fetchSemanticsNode().boundsInRoot
@@ -63,6 +94,10 @@ class FocusGuardTest {
             compose.onNodeWithContentDescription("재생목록 열기").fetchSemanticsNode().boundsInRoot.center,
         )
         compose.onNodeWithTag("pomodoro_toggle").performClick()
+        instrumentation.runOnMainSync {
+            assertFalse("A secure device must reject unlocking without authentication", app.focusGuard.unlockWithoutAuthentication())
+            assertTrue(app.focusGuard.locked.value)
+        }
         compose.onNodeWithTag("focus_unlock").assertIsDisplayed()
         assertEquals("Lock button must stay in the same place", lockBounds,
             compose.onNodeWithTag("focus_unlock").fetchSemanticsNode().boundsInRoot)
@@ -110,7 +145,7 @@ class FocusGuardTest {
     }
 
     @Test fun skippedFocusShowsTriangleAndResetClearsAllRoundIcons() {
-        Assume.assumeTrue(app.focusGuard.canLock)
+        Assume.assumeTrue(app.focusGuard.requiresAuthentication)
         landscape()
         compose.onNodeWithText("POMODORO").assertDoesNotExist()
         compose.onNodeWithTag("pomodoro_toggle").performClick()
@@ -133,18 +168,22 @@ class FocusGuardTest {
         assertFalse(app.pomodoro.state.value.running)
     }
 
-    @Test fun lockStaysReachableWhenControlsScrollAndWhenRotatedWhilePaused() {
-        Assume.assumeTrue(app.focusGuard.canLock)
+    @Test fun lockStaysReachableWhenControlsScrollAndModeSwitchIsBlockedWhilePaused() {
+        Assume.assumeTrue(app.focusGuard.requiresAuthentication)
         landscape()
         compose.onNodeWithContentDescription("재생목록 열기").performClick()
-        compose.onNodeWithTag("pomodoro_toggle").performTouchInput { swipeUp() }
+        compose.onNodeWithText("내 재생목록").assertIsDisplayed()
+        // The dial is no longer a scrolling area. Scroll the actual playlist, without pressing its start button.
+        compose.onNodeWithTag("compact_player").performTouchInput { swipeUp(startY = height * .8f, endY = height * .35f) }
         compose.onNodeWithTag("focus_lock").assertIsDisplayed().performClick()
         compose.onNodeWithTag("focus_unlock").assertIsDisplayed()
         assertTrue(app.focusGuard.locked.value)
         assertFalse(app.pomodoro.state.value.running)
-        compose.activityRule.scenario.onActivity { it.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT }
-        // The portrait header also keeps the sole authentication button reachable.
-        compose.waitUntil(10_000) { compose.onAllNodesWithTag("focus_unlock").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("app_mode_toggle").assertDoesNotExist()
+        compose.activityRule.scenario.onActivity {
+            androidx.lifecycle.ViewModelProvider(it)[PlayerViewModel::class.java].setAppMode(AppMode.PLAYBACK)
+        }
+        assertEquals(AppMode.POMODORO, app.appMode.state.value)
         compose.onNodeWithTag("focus_unlock").assertIsDisplayed().performClick()
         assertNotNull(device.wait(Until.findObject(By.clazz("android.widget.EditText")), 10_000))
         device.pressBack()

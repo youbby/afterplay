@@ -46,7 +46,7 @@ class LandscapeWorkspaceTest {
         compose.waitForIdle()
     }
 
-    @Test fun onlyRunningPomodoroKeepsScreenOnAndPreventsPortraitRotation() {
+    @Test fun onlyRunningPomodoroKeepsScreenOnAndSelectedModeControlsOrientation() {
         try {
             instrumentation.runOnMainSync { app.pomodoro.reset() }
             rotate(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
@@ -85,7 +85,7 @@ class LandscapeWorkspaceTest {
     private fun assertLandscapeLocked() {
         compose.activityRule.scenario.onActivity {
             assertEquals(android.content.res.Configuration.ORIENTATION_LANDSCAPE, it.resources.configuration.orientation)
-            assertEquals(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE, it.requestedOrientation)
+            assertEquals(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE, it.requestedOrientation)
         }
     }
 
@@ -129,7 +129,7 @@ class LandscapeWorkspaceTest {
             compose.activityRule.scenario.recreate()
             assertLandscapeLocked()
             assertTrue(app.pomodoro.state.value.running)
-            compose.onNodeWithTag("pomodoro_toggle").assertTextEquals("일시정지")
+            compose.onNodeWithTag("pomodoro_toggle").assertContentDescriptionEquals("뽀모도로 일시정지")
             togglePomodoro()
             val paused = app.pomodoro.state.value.remainingMs
             Thread.sleep(1_200)
@@ -137,8 +137,8 @@ class LandscapeWorkspaceTest {
             rotate(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
             rotate(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
             compose.onNodeWithContentDescription("다음 뽀모도로 단계").performClick()
-            compose.onNodeWithTag("pomodoro_phase").assertTextEquals("집중")
-            compose.onNodeWithTag("pomodoro_remaining").assertTextEquals("5:00")
+            compose.onNodeWithTag("pomodoro_phase").assertTextEquals("휴식")
+            compose.onNodeWithTag("pomodoro_remaining").assertTextEquals("05:00")
             compose.onNodeWithContentDescription("뽀모도로 초기화").performClick()
             compose.onNodeWithTag("pomodoro_phase").assertTextEquals("집중")
             compose.onNodeWithTag("pomodoro_remaining").assertTextEquals("25:00")
@@ -201,23 +201,7 @@ class LandscapeWorkspaceTest {
     }
 
     private fun rotate(orientation: Int) {
-        instrumentation.runOnMainSync { app.pomodoro.refresh() }
-        compose.activityRule.scenario.onActivity { it.requestedOrientation = orientation }
-        val expected = if (orientation == ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
-            android.content.res.Configuration.ORIENTATION_LANDSCAPE else android.content.res.Configuration.ORIENTATION_PORTRAIT
-        val until = System.currentTimeMillis() + 10_000
-        var ready = false
-        while (!ready && System.currentTimeMillis() < until) {
-            compose.activityRule.scenario.onActivity {
-                ready = it.resources.configuration.orientation == expected && it.window.decorView.isAttachedToWindow &&
-                    it.window.decorView.hasWindowFocus()
-            }
-            if (!ready) Thread.sleep(100)
-        }
-        assertTrue("Rotated activity should be attached and focused", ready)
-        // Querying old Compose roots during recreation can await a frame from a detached window.
-        instrumentation.waitForIdleSync()
-        instrumentation.uiAutomation.waitForIdle(100, 3_000)
-        compose.waitForIdle()
+        selectAppModeForTest(compose, app, if (orientation == ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
+            com.afterplay.app.data.AppMode.POMODORO else com.afterplay.app.data.AppMode.PLAYBACK)
     }
 }

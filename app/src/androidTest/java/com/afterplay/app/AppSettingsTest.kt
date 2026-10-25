@@ -1,7 +1,6 @@
 package com.afterplay.app
 
 import android.content.ComponentName
-import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -154,7 +153,7 @@ class AppSettingsTest {
             assertEquals(ThemePreset.SLATE, app.appearance.state.value)
             assertEquals(deadline, app.pomodoro.state.value.deadlineMs)
             togglePomodoro()
-            compose.activityRule.scenario.onActivity { it.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT }
+            selectAppModeForTest(compose, app, com.afterplay.app.data.AppMode.PLAYBACK)
             compose.waitUntil(10_000) { compose.onAllNodesWithTag("landscape_workspace").fetchSemanticsNodes().isEmpty() }
             compose.onNodeWithText("내 재생목록").assertIsDisplayed()
             compose.waitForIdle()
@@ -169,7 +168,7 @@ class AppSettingsTest {
     }
 
     private fun landscape() {
-        compose.activityRule.scenario.onActivity { it.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE }
+        selectAppModeForTest(compose, app, com.afterplay.app.data.AppMode.POMODORO)
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("landscape_workspace").fetchSemanticsNodes().isNotEmpty() }
         compose.waitForIdle()
     }

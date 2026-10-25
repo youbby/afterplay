@@ -18,16 +18,22 @@ class PomodoroSessionTest {
         assertTrue(afterExpiry.running)
     }
 
-    @Test fun fourthCompletedFocusStartsLongBreakThenNewCycle() {
+    @Test fun fourthCompletedFocusStartsLongBreakThenStopsWithCompletedRounds() {
         val timer = PomodoroSession().start(start).advance(start + minutes(115))
         assertEquals(PomodoroPhase.LONG_BREAK, timer.phase)
         assertEquals(minutes(30), timer.remainingMs)
         assertEquals(4, timer.completedFocusSessions)
         assertEquals(4, timer.round)
-        val nextCycle = timer.advance(start + minutes(145))
-        assertEquals(PomodoroPhase.FOCUS, nextCycle.phase)
-        assertEquals(1, nextCycle.round)
-        assertEquals(minutes(25), nextCycle.remainingMs)
+        val finished = timer.advance(start + minutes(145))
+        assertEquals(PomodoroPhase.LONG_BREAK, finished.phase)
+        assertEquals(4, finished.round)
+        assertEquals(0, finished.remainingMs)
+        assertTrue(finished.finished)
+        assertFalse(finished.running)
+        assertTrue(finished.roundResults.all { it == PomodoroRound.COMPLETED })
+        assertEquals(start + minutes(145), finished.finishedAtMs)
+        assertEquals(finished, finished.advance(start + minutes(10_000)))
+        assertEquals(finished, finished.skip(start + minutes(10_000)))
     }
 
     @Test fun pauseResumePreservesElapsedTimeAndPhase() {
@@ -45,8 +51,10 @@ class PomodoroSessionTest {
         assertEquals(0, next.completedFocusSessions)
         assertEquals(minutes(5), next.remainingMs)
         val afterLongAbsence = next.advance(start + minutes(132))
-        assertEquals(PomodoroPhase.FOCUS, afterLongAbsence.phase)
-        assertEquals(minutes(15), afterLongAbsence.remainingMs)
+        assertTrue(afterLongAbsence.finished)
+        assertFalse(afterLongAbsence.running)
+        assertEquals(0, afterLongAbsence.remainingMs)
+        assertEquals(start + minutes(122), afterLongAbsence.finishedAtMs)
         assertEquals(3, afterLongAbsence.completedFocusSessions)
     }
 
@@ -58,16 +66,18 @@ class PomodoroSessionTest {
         assertEquals(PomodoroPhase.FOCUS, next.skip(start).phase)
     }
 
-    @Test fun overdueRestoredSessionCatchesUpAcrossManyCycles() {
+    @Test fun overdueRestoredSessionStopsAtTheConfiguredProgramBoundary() {
         val original = PomodoroSession().start(start)
         val restored = original.copy().advance(start + minutes(145 * 100 + 31))
-        assertEquals(PomodoroPhase.FOCUS, restored.phase)
-        assertEquals(minutes(24), restored.remainingMs)
-        assertEquals(401, restored.completedFocusSessions)
-        assertEquals(2, restored.round)
+        assertTrue(restored.finished)
+        assertFalse(restored.running)
+        assertEquals(0, restored.remainingMs)
+        assertEquals(4, restored.completedFocusSessions)
+        assertEquals(4, restored.round)
+        assertEquals(start + original.config.cycleMs, restored.finishedAtMs)
     }
 
-    @Test fun customDurationsApplyToEveryPhaseAndCatchUpCycle() {
+    @Test fun customDurationsApplyToEveryPhaseAndStopAfterTheFinalRest() {
         val config = PomodoroConfig(40, 7, 30)
         val timer = PomodoroSession(config = config).start(start)
         assertEquals(minutes(40), timer.remainingMs)
@@ -78,9 +88,10 @@ class PomodoroSessionTest {
         assertEquals(PomodoroPhase.LONG_BREAK, longBreak.phase)
         assertEquals(minutes(30), longBreak.remainingMs)
         val restored = timer.advance(start + minutes(211 * 50 + 41))
-        assertEquals(PomodoroPhase.SHORT_BREAK, restored.phase)
-        assertEquals(minutes(6), restored.remainingMs)
-        assertEquals(201, restored.completedFocusSessions)
+        assertTrue(restored.finished)
+        assertEquals(0, restored.remainingMs)
+        assertEquals(4, restored.completedFocusSessions)
+        assertEquals(start + config.cycleMs, restored.finishedAtMs)
     }
 
     @Test fun customPauseAndSkipRetainTheConfiguredDurations() {
@@ -114,7 +125,11 @@ class PomodoroSessionTest {
         assertEquals(PomodoroPhase.LONG_BREAK, interrupted.phase)
         assertEquals(listOf(PomodoroRound.COMPLETED, PomodoroRound.SKIPPED), interrupted.roundResults)
         assertEquals(1, interrupted.completedFocusSessions)
-        val fresh = interrupted.skip(start + minutes(22))
+        val ended = interrupted.skip(start + minutes(22))
+        assertTrue(ended.finished)
+        assertFalse(ended.running)
+        assertEquals(interrupted.roundResults, ended.roundResults)
+        val fresh = ended.start(start + minutes(23))
         assertEquals(1, fresh.round)
         assertEquals(initial.roundResults, fresh.roundResults)
         assertEquals(PomodoroRound.PENDING, initial.skip(start).roundResults.first())
@@ -139,12 +154,14 @@ class PomodoroSessionTest {
             }
             assertEquals(repeat, timer.completedFocusSessions)
             timer = timer.advance(timer.deadlineMs)
-            assertEquals(1, timer.round)
-            assertTrue(timer.roundResults.all { it == PomodoroRound.PENDING })
+            assertTrue(timer.finished)
+            assertFalse(timer.running)
+            assertEquals(repeat, timer.round)
+            assertTrue(timer.roundResults.all { it == PomodoroRound.COMPLETED })
         }
     }
 
-    @Test fun fastCatchUpMatchesStepByStepAfterSkipsForEveryRepeatCount() {
+    @Test fun catchUpMatchesStepByStepAfterSkipsForEveryRepeatCount() {
         for (repeat in 1..4) {
             val config = PomodoroConfig(20, 5, 30, repeat)
             val initial = PomodoroSession(config = config).start(start)
@@ -152,11 +169,43 @@ class PomodoroSessionTest {
                 for (offset in listOf(0L, config.cycleMs + 12_345, config.cycleMs * 100 + 67_890)) {
                     val now = base.deadlineMs + offset
                     var reference = base
-                    while (now >= reference.deadlineMs) reference = reference.advance(reference.deadlineMs)
+                    while (reference.running && now >= reference.deadlineMs) reference = reference.advance(reference.deadlineMs)
                     reference = reference.advance(now)
                     assertEquals(reference, base.advance(now))
                 }
             }
         }
+    }
+
+    @Test fun finishedProgramOnlyRestartsOnExplicitStartAndKeepsItsSettings() {
+        val config = PomodoroConfig(20, 5, 30, 2)
+        val finished = PomodoroSession(config = config).start(start).advance(start + config.cycleMs)
+        val restarted = finished.start(start + config.cycleMs + 60_000)
+        assertTrue(restarted.running)
+        assertFalse(restarted.finished)
+        assertEquals(config, restarted.config)
+        assertEquals(0, restarted.completedFocusSessions)
+        assertEquals(1, restarted.round)
+        assertEquals(minutes(20), restarted.remainingMs)
+        assertTrue(restarted.roundResults.all { it == PomodoroRound.PENDING })
+    }
+
+    @Test fun focusDialDrainsWhileBothRestDialsFillAtTheirOwnDuration() {
+        val config = PomodoroConfig(25, 5, 30, 4)
+        for (phase in PomodoroPhase.entries) {
+            val initial = PomodoroSession(config = config, phase = phase).start(start)
+            val half = initial.advance(start + initial.durationMs / 2)
+            assertEquals(.5f, half.dialFraction, .00001f)
+            assertEquals(if (phase == PomodoroPhase.FOCUS) 1f else 0f, initial.dialFraction, 0f)
+        }
+        val focusMinute = PomodoroSession(config = config).start(start).advance(start + minutes(1))
+        val restMinute = PomodoroSession(config = config, phase = PomodoroPhase.SHORT_BREAK).start(start).advance(start + minutes(1))
+        assertEquals(.96f, focusMinute.dialFraction, .00001f)
+        assertEquals(.2f, restMinute.dialFraction, .00001f)
+        val focus = PomodoroSession(config = config).start(start)
+        val rest = focus.advance(focus.deadlineMs)
+        assertEquals(0f, rest.dialFraction, 0f)
+        val nextFocus = rest.advance(rest.deadlineMs)
+        assertEquals(1f, nextFocus.dialFraction, 0f)
     }
 }

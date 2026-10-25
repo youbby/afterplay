@@ -11,11 +11,13 @@ class FocusGuard(context: Context) {
     private val keyguard = context.getSystemService(KeyguardManager::class.java)
     private val mutableLocked = MutableStateFlow(preferences.getBoolean("locked", false))
     val locked = mutableLocked.asStateFlow()
-    val canLock: Boolean get() = keyguard?.isDeviceSecure == true
+    val requiresAuthentication: Boolean get() = keyguard?.isDeviceSecure == true
 
-    fun lock(): Boolean {
-        if (!canLock) return false
-        setLocked(true)
+    fun lock() = setLocked(true)
+
+    fun unlockWithoutAuthentication(): Boolean {
+        if (requiresAuthentication) return false
+        setLocked(false)
         return true
     }
 

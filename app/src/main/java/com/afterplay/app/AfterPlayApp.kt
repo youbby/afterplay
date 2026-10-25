@@ -1,6 +1,7 @@
 package com.afterplay.app
 
 import android.app.Application
+import com.afterplay.app.data.AppModeStore
 import com.afterplay.app.data.LibraryStore
 import com.afterplay.app.data.ThemeStore
 import com.afterplay.app.data.FocusGuard
@@ -20,5 +21,6 @@ class AfterPlayApp : Application() {
     val pomodoro by lazy { PomodoroTimer(this) }
     val appearance by lazy { ThemeStore(this) }
     val focusGuard by lazy { FocusGuard(this) }
+    val appMode by lazy { AppModeStore(this) }
     val updates by lazy { UpdateRepository() }
 }

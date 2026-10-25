@@ -1,6 +1,5 @@
 package com.afterplay.app.ui
 
-import android.content.res.Configuration
 import android.content.ClipData
 import android.content.ClipboardManager
 import androidx.compose.foundation.background
@@ -24,7 +23,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalContext
@@ -42,15 +40,15 @@ import coil.compose.AsyncImage
 import com.afterplay.app.PlaybackUi
 import com.afterplay.app.PlayerViewModel
 import com.afterplay.app.data.Playlist
+import com.afterplay.app.data.AppMode
 import com.afterplay.app.data.Track
 import java.util.Locale
 
 @Composable
 fun AfterPlayScreen(model: PlayerViewModel, onAddQuickSettingsTile: () -> Unit = {}, onThemeChanged: (Boolean) -> Unit = {},
-    onUnlockFocus: () -> Unit = {}, onSetScreenLock: () -> Unit = {}) {
-    val configuration = LocalConfiguration.current
-    val landscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-    val workspace = landscape || configuration.screenWidthDp >= 600
+    onUnlockFocus: () -> Unit = {}) {
+    val appMode by model.appMode.collectAsStateWithLifecycle()
+    val workspace = appMode == AppMode.POMODORO
     val lists by model.playlists.collectAsStateWithLifecycle()
     val selectedId by model.selectedId.collectAsStateWithLifecycle()
     val loading by model.loadingLibrary.collectAsStateWithLifecycle()
@@ -58,7 +56,6 @@ fun AfterPlayScreen(model: PlayerViewModel, onAddQuickSettingsTile: () -> Unit =
     val theme by model.theme.collectAsStateWithLifecycle()
     val timer by model.pomodoro.collectAsStateWithLifecycle()
     val focusLocked by model.focusLocked.collectAsStateWithLifecycle()
-    val needsScreenLock by model.needsScreenLock.collectAsStateWithLifecycle()
     val updateStatus by model.updateStatus.collectAsStateWithLifecycle()
     val uriHandler = LocalUriHandler.current
     val context = LocalContext.current
@@ -102,9 +99,12 @@ fun AfterPlayScreen(model: PlayerViewModel, onAddQuickSettingsTile: () -> Unit =
             Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Rounded.GraphicEq, null, tint = Accent, modifier = Modifier.size(30.dp))
                 Spacer(Modifier.width(10.dp))
-                Text("이어듣기", fontWeight = FontWeight.Bold, fontSize = 21.sp)
-                Spacer(Modifier.weight(1f))
-                if (!workspace) FocusLockButton(focusLocked, onLock = { model.lockFocus() }, tint = Muted)
+                Text("이어듣기", fontWeight = FontWeight.Bold, fontSize = 21.sp,
+                    modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (!workspace) {
+                    FocusLockButton(focusLocked, onLock = { model.lockFocus() }, tint = Muted)
+                    AppModeButton(appMode, model::toggleAppMode, Muted)
+                }
                 IconButton(onClick = { settingsTab = 0 }) { Icon(Icons.Rounded.Palette, "앱 설정", tint = Muted) }
                 IconButton(onClick = { showAbout = true }) { Icon(Icons.Rounded.Info, "앱 정보", tint = Muted) }
             }
@@ -258,13 +258,6 @@ fun AfterPlayScreen(model: PlayerViewModel, onAddQuickSettingsTile: () -> Unit =
                 onClear = model::clearDiagnostics, onDismiss = { showDiagnostics = false; showAbout = true })
         }
         }
-        if (needsScreenLock && !focusLocked) AlertDialog(
-            onDismissRequest = { model.needsScreenLock.value = false },
-            title = { Text("화면 잠금을 먼저 설정해 주세요") },
-            text = { Text("집중 시작 후에는 터치가 잠깁니다. 해제에 사용할 지문·패턴·PIN을 기기 설정에서 등록해 주세요.") },
-            confirmButton = { TextButton(onClick = { model.needsScreenLock.value = false; onSetScreenLock() }) { Text("기기 설정 열기") } },
-            dismissButton = { TextButton(onClick = { model.needsScreenLock.value = false }) { Text("취소") } },
-        )
     }
 }
 

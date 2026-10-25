@@ -47,7 +47,7 @@ class DiagnosticsIntegrationTest {
             instrumentation.runOnMainSync { app.focusGuard.unlockAfterAuthentication(); app.pomodoro.reset() }
             val landscape = InstrumentationRegistry.getArguments().getString("landscape") == "true"
             if (landscape) {
-                compose.activityRule.scenario.onActivity { it.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE }
+                selectAppModeForTest(compose, app, com.afterplay.app.data.AppMode.POMODORO)
                 val until = System.currentTimeMillis() + 10_000
                 var ready = false
                 while (!ready && System.currentTimeMillis() < until) {

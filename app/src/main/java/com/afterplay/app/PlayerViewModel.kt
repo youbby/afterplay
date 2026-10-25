@@ -10,6 +10,7 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.afterplay.app.data.Playlist
+import com.afterplay.app.data.AppMode
 import com.afterplay.app.data.Track
 import com.afterplay.app.data.PomodoroConfig
 import com.afterplay.app.data.ThemePreset
@@ -67,7 +68,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     val pomodoro = app.pomodoro.state
     val pomodoroNotice = app.pomodoro.notice
     val focusLocked = app.focusGuard.locked
-    val needsScreenLock = MutableStateFlow(false)
+    val appMode = app.appMode.state
+    fun setAppMode(mode: AppMode) {
+        if (!focusLocked.value) app.appMode.select(mode)
+    }
+    fun toggleAppMode() = setAppMode(if (appMode.value == AppMode.PLAYBACK) AppMode.POMODORO else AppMode.PLAYBACK)
     val theme = app.appearance.state
     val diagnostics = app.diagnostics.log.state
     val diagnosticNetwork = app.diagnostics.network
@@ -93,14 +98,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     fun configurePomodoro(config: PomodoroConfig) { if (!focusLocked.value) app.pomodoro.configure(config) }
     fun togglePomodoro() {
         if (focusLocked.value) return
-        if (!pomodoro.value.running && !lockFocus()) return
+        if (!pomodoro.value.running) lockFocus()
         app.pomodoro.toggle()
     }
-    fun lockFocus(): Boolean {
-        if (app.focusGuard.lock()) return true
-        needsScreenLock.value = true
-        return false
-    }
+    fun lockFocus() = app.focusGuard.lock()
     fun resetPomodoro() { if (!focusLocked.value) app.pomodoro.reset() }
     fun skipPomodoro() { if (!focusLocked.value) app.pomodoro.skip() }
     fun refreshPomodoro() = app.pomodoro.refresh()
