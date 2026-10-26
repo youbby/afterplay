@@ -1,17 +1,22 @@
 package com.afterplay.app
 
-import android.content.ClipboardManager
 import android.content.ComponentName
 import android.content.res.Configuration
 import android.graphics.Bitmap
+import android.net.Uri
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
+import androidx.lifecycle.ViewModelProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.By
+import androidx.test.uiautomator.UiDevice
+import androidx.test.uiautomator.UiSelector
+import androidx.test.uiautomator.Until
 import com.afterplay.app.diagnostics.DiagnosticKind
 import com.afterplay.app.diagnostics.diagnosticHint
 import com.afterplay.app.playback.PlaybackService
@@ -25,6 +30,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.regex.Pattern
 
 @RunWith(AndroidJUnit4::class)
 class DiagnosticsIntegrationTest {
@@ -33,7 +39,7 @@ class DiagnosticsIntegrationTest {
     private val context get() = instrumentation.targetContext
     private val app get() = context.applicationContext as AfterPlayApp
 
-    @Test fun realPlaybackIsRecordedAndInfoCanCopyClearAndReopenTheJournal() {
+    @Test fun realPlaybackIsRecordedAndInfoCanSaveClearAndReopenTheJournal() {
         val samples = 8_000 * 30
         val wav = ByteBuffer.allocate(44 + samples * 2).order(ByteOrder.LITTLE_ENDIAN)
         wav.put("RIFF".toByteArray()).putInt(36 + samples * 2).put("WAVEfmt ".toByteArray())
@@ -73,12 +79,37 @@ class DiagnosticsIntegrationTest {
             compose.onNodeWithContentDescription("앱 정보").performClick()
             compose.onNodeWithTag("open_diagnostics").performScrollTo().performClick()
             compose.onNodeWithTag("diagnostic_network").assertIsDisplayed()
-            compose.onNodeWithTag("copy_diagnostics").performClick()
-            compose.onNodeWithText("로그를 복사했습니다.").assertIsDisplayed()
-            var copied = ""
-            instrumentation.runOnMainSync { copied = context.getSystemService(ClipboardManager::class.java).primaryClip!!.getItemAt(0).text.toString() }
-            assertTrue(copied.contains("AfterPlay 문제 확인"))
-            assertFalse(copied.contains("private-title"))
+            val device = UiDevice.getInstance(instrumentation)
+            compose.onNodeWithTag("copy_diagnostics").assertDoesNotExist()
+            compose.onNodeWithTag("save_diagnostics").performClick()
+            requireNotNull(device.wait(Until.findObject(By.clazz("android.widget.EditText")), 10_000))
+            repeat(3) {
+                if (device.currentPackageName != context.packageName) { device.pressBack(); device.waitForIdle(1_000) }
+            }
+            compose.onNodeWithText("로그 저장을 취소했습니다.").assertIsDisplayed()
+            compose.onNodeWithTag("save_diagnostics").assertIsEnabled()
+            repeat(130) { app.diagnostics.log.record(DiagnosticKind.PLAYER, "파일 저장 검사 $it") }
+            app.diagnostics.log.awaitIdle()
+            compose.onNodeWithTag("save_diagnostics").performClick()
+            requireNotNull(device.wait(Until.findObject(By.clazz("android.widget.EditText")), 10_000))
+            device.waitForIdle()
+            val roots = device.wait(Until.findObject(By.desc(Pattern.compile("Show roots|Open navigation drawer|루트 표시|탐색 메뉴 열기"))), 2_000)
+            roots?.click()
+            device.waitForIdle()
+            val downloadsRoot = By.res("android:id/title").text(Pattern.compile("Downloads|다운로드"))
+            assertTrue(device.wait(Until.hasObject(downloadsRoot), 5_000))
+            assertTrue(device.findObject(UiSelector().resourceId("android:id/title").textMatches("Downloads|다운로드")).click())
+            assertTrue(device.wait(Until.gone(downloadsRoot), 5_000))
+            val name = "AfterPlay-export-test-${System.nanoTime()}.txt"
+            assertTrue(device.findObject(UiSelector().className("android.widget.EditText")).setText(name))
+            assertTrue(device.findObject(UiSelector().resourceId("android:id/button1").textMatches("(?i)save|저장")).click())
+            compose.waitUntil(10_000) { compose.onAllNodesWithText("로그 파일을 저장했습니다.").fetchSemanticsNodes().isNotEmpty() }
+            val saved = device.executeShellCommand("cat /sdcard/Download/$name")
+            assertTrue(saved.contains("AfterPlay 문제 확인"))
+            assertTrue(saved.contains("파일 저장 검사 0"))
+            assertTrue("Save must include records outside the 100 visible rows", saved.contains("파일 저장 검사 129"))
+            assertFalse(saved.contains("private-title")); assertFalse(saved.contains("private-media-id"))
+            device.executeShellCommand("rm /sdcard/Download/$name")
             compose.activityRule.scenario.recreate()
             compose.onNodeWithTag("diagnostic_events").assertIsDisplayed()
             val bitmap = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
@@ -97,6 +128,20 @@ class DiagnosticsIntegrationTest {
             instrumentation.runOnMainSync { controller.pause(); controller.stop(); controller.clearMediaItems(); MediaController.releaseFuture(future) }
             file.delete()
         }
+    }
+
+    @Test fun failedFileWriteShowsFailureAndAllowsAnotherSave() {
+        instrumentation.runOnMainSync { app.focusGuard.unlockAfterAuthentication(); app.pomodoro.reset() }
+        compose.onNodeWithContentDescription("앱 정보").performClick()
+        compose.onNodeWithTag("open_diagnostics").performScrollTo().performClick()
+        compose.activityRule.scenario.onActivity {
+            ViewModelProvider(it)[PlayerViewModel::class.java].saveDiagnostics(Uri.parse("content://com.afterplay.nonexistent/log.txt"))
+        }
+        compose.waitUntil(5_000) {
+            compose.onAllNodesWithText("로그 파일을 저장하지 못했습니다. 저장 위치와 여유 공간을 확인해 주세요.").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithTag("save_diagnostics").assertIsEnabled()
+        compose.onNodeWithText("로그 파일을 저장했습니다.").assertDoesNotExist()
     }
 
     @Test fun realAudioHttp403IsLoggedAsServerEvidenceInsteadOfClaimingNetworkLoss() {

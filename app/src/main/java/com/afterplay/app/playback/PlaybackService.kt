@@ -27,6 +27,7 @@ import com.afterplay.app.data.Track
 import com.afterplay.app.diagnostics.DiagnosticKind
 import com.afterplay.app.diagnostics.PlaybackDiagnosticListener
 import java.io.IOException
+import java.util.concurrent.atomic.AtomicBoolean
 
 @androidx.annotation.OptIn(UnstableApi::class)
 class PlaybackService : MediaSessionService() {
@@ -62,6 +63,10 @@ class PlaybackService : MediaSessionService() {
                 }
             }
         }
+        val bufferedPlayback = AtomicBoolean(false)
+        val loadErrorPolicy = PlaybackLoadErrorPolicy(canResumeLoads = bufferedPlayback::get) {
+            diagnostics.log.record(DiagnosticKind.RECOVERY, it)
+        }
         val player = ExoPlayer.Builder(this)
             .setTrackSelector(DefaultTrackSelector(this).apply {
                 setParameters(buildUponParameters().setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, true))
@@ -71,7 +76,7 @@ class PlaybackService : MediaSessionService() {
                 .setPrioritizeTimeOverSizeThresholds(true)
                 .build())
             .setMediaSourceFactory(DefaultMediaSourceFactory(DefaultDataSource.Factory(this, resolving))
-                .setLoadErrorHandlingPolicy(PlaybackLoadErrorPolicy()))
+                .setLoadErrorHandlingPolicy(loadErrorPolicy))
             .setAudioAttributes(AudioAttributes.Builder()
                 .setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(), true)
             .setHandleAudioBecomingNoisy(true)
@@ -84,6 +89,7 @@ class PlaybackService : MediaSessionService() {
             // Do not prepare or auto-play on app startup; the user starts resumed playback.
         }
         player.addListener(object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) { bufferedPlayback.set(isPlaying) }
             override fun onEvents(player: Player, events: Player.Events) {
                 sleepTimer.checkDeadline()
                 store.save(player, durable = events.contains(Player.EVENT_PLAY_WHEN_READY_CHANGED) ||
@@ -93,7 +99,7 @@ class PlaybackService : MediaSessionService() {
         diagnosticListener = PlaybackDiagnosticListener(player, diagnostics).also {
             player.addListener(it); player.addAnalyticsListener(it)
         }
-        player.addListener(PlaybackRecovery(player, handler, repository::invalidate) {
+        player.addListener(PlaybackRecovery(player, handler, repository::invalidate, loadErrorPolicy::failedAttempts) {
             diagnostics.log.record(DiagnosticKind.RECOVERY, it)
         })
         val activity = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java),

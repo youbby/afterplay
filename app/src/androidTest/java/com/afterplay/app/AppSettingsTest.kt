@@ -38,7 +38,7 @@ class AppSettingsTest {
         instrumentation.runOnMainSync {
             app.focusGuard.unlockAfterAuthentication()
             app.pomodoro.configure(PomodoroConfig())
-            app.appearance.select(ThemePreset.BURGUNDY)
+            app.appearance.select(ThemePreset.MINT)
         }
     }
 
@@ -53,7 +53,7 @@ class AppSettingsTest {
         compose.onNodeWithContentDescription("뽀모도로 시간 설정").performClick()
         compose.onNodeWithText("뽀모도로 설정").assertIsDisplayed()
         compose.onNodeWithText("테마").assertDoesNotExist()
-        compose.onAllNodesWithTag("theme_BURGUNDY").assertCountEquals(0)
+        compose.onAllNodesWithTag("theme_MINT").assertCountEquals(0)
         compose.onNodeWithTag("focus_minutes").performTextReplacement("0")
         compose.onNodeWithText("저장").assertIsNotEnabled()
         compose.onNodeWithTag("focus_minutes").performTextReplacement("40")
@@ -117,7 +117,7 @@ class AppSettingsTest {
         }
     }
 
-    @Test fun fivePresetsApplyPersistAndKeepFocusRunning() {
+    @Test fun tenPresetsApplyPersistAndKeepFocusRunning() {
         landscape()
         val samples = 8_000 * 30
         val wav = ByteBuffer.allocate(44 + samples * 2).order(ByteOrder.LITTLE_ENDIAN)
@@ -150,20 +150,33 @@ class AppSettingsTest {
                 capture("theme-${preset.name.lowercase()}.png")
             }
             compose.activityRule.scenario.recreate()
-            assertEquals(ThemePreset.SLATE, app.appearance.state.value)
+            assertEquals(ThemePreset.NEON, app.appearance.state.value)
             assertEquals(deadline, app.pomodoro.state.value.deadlineMs)
             togglePomodoro()
             selectAppModeForTest(compose, app, com.afterplay.app.data.AppMode.PLAYBACK)
             compose.waitUntil(10_000) { compose.onAllNodesWithTag("landscape_workspace").fetchSemanticsNodes().isEmpty() }
             compose.onNodeWithText("내 재생목록").assertIsDisplayed()
             compose.waitForIdle()
-            capture("theme-slate-portrait.png")
+            capture("theme-neon-portrait.png")
         } finally {
             instrumentation.runOnMainSync {
                 controller.pause(); controller.stop(); controller.clearMediaItems()
                 MediaController.releaseFuture(future)
             }
             sample.delete()
+        }
+    }
+
+    @Test fun removedPresetsFallBackToMintAndExistingBlueAndSlateStaySelected() {
+        val prefs = context.getSharedPreferences("appearance_v1", android.content.Context.MODE_PRIVATE)
+        for (removed in listOf("BURGUNDY", "PEACH", "AMBER", "unknown")) {
+            prefs.edit().putString("preset", removed).commit()
+            assertEquals(ThemePreset.MINT, ThemeStore(context).state.value)
+            assertEquals("MINT", prefs.getString("preset", null))
+        }
+        for (retained in listOf(ThemePreset.BLUE, ThemePreset.SLATE)) {
+            prefs.edit().putString("preset", retained.name).commit()
+            assertEquals(retained, ThemeStore(context).state.value)
         }
     }
 

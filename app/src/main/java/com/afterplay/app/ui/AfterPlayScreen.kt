@@ -1,7 +1,7 @@
 package com.afterplay.app.ui
 
-import android.content.ClipData
-import android.content.ClipboardManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
@@ -24,7 +24,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -42,6 +41,8 @@ import com.afterplay.app.data.Playlist
 import com.afterplay.app.data.AppMode
 import com.afterplay.app.data.Track
 import java.util.Locale
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 private enum class SettingsDialog { THEME, POMODORO }
 
@@ -60,7 +61,10 @@ fun AfterPlayScreen(model: PlayerViewModel, onAddQuickSettingsTile: () -> Unit =
     val updateStatus by model.updateStatus.collectAsStateWithLifecycle()
     val hyperlapse by model.hyperlapse.state.collectAsStateWithLifecycle()
     val uriHandler = LocalUriHandler.current
-    val context = LocalContext.current
+    val diagnosticSave by model.diagnosticSave.collectAsStateWithLifecycle()
+    val saveDiagnosticFile = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
+        if (uri == null) model.cancelDiagnosticSave() else model.saveDiagnostics(uri)
+    }
     val view = LocalView.current
     val keepScreenOn = timer.running
     DisposableEffect(view, keepScreenOn) {
@@ -261,7 +265,13 @@ fun AfterPlayScreen(model: PlayerViewModel, onAddQuickSettingsTile: () -> Unit =
             val network by model.diagnosticNetwork.collectAsStateWithLifecycle()
             LaunchedEffect(Unit) { model.refreshDiagnostics() }
             DiagnosticsDialog(snapshot, network, model::refreshDiagnostics,
-                onCopy = { context.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("AfterPlay 문제 확인", model.diagnosticReport())) },
+                onSave = {
+                    if (model.beginDiagnosticSave()) {
+                        val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"))
+                        try { saveDiagnosticFile.launch("AfterPlay-log-${com.afterplay.app.BuildConfig.VERSION_NAME}-$timestamp.txt") }
+                        catch (_: Exception) { model.diagnosticSaveUnavailable() }
+                    }
+                }, saving = diagnosticSave.busy, saveMessage = diagnosticSave.message,
                 onClear = model::clearDiagnostics, onDismiss = { showDiagnostics = false; showAbout = true })
         }
         }

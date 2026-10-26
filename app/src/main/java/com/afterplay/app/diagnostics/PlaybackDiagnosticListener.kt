@@ -72,10 +72,9 @@ internal class PlaybackDiagnosticListener(private val player: Player, private va
             "${http?.let { "HTTP=${it.responseCode}" } ?: network ?: "원인 추가 확인 필요"} · ${chain.joinToString(" > ") { it.javaClass.simpleName }} · ${diagnostics.network.value}")
     }
     override fun onLoadError(eventTime: AnalyticsListener.EventTime, loadEventInfo: LoadEventInfo, mediaLoadData: MediaLoadData, error: IOException, wasCanceled: Boolean) {
-        if (!wasCanceled) {
-            log.record(DiagnosticKind.PLAYER, "오디오 로드 실패 · 수신=${loadEventInfo.bytesLoaded}B · 경과=${loadEventInfo.loadDurationMs}ms")
-            recordError(error)
-        }
+        // Media3 also sets wasCanceled for terminal load errors; those must not disappear.
+        log.record(DiagnosticKind.PLAYER, "오디오 로드 실패 · 수신=${loadEventInfo.bytesLoaded}B · 경과=${loadEventInfo.loadDurationMs}ms · 수신재시도=${!wasCanceled}")
+        recordError(error)
     }
     override fun onBandwidthEstimate(eventTime: AnalyticsListener.EventTime, totalLoadTimeMs: Int, totalBytesLoaded: Long, bitrateEstimate: Long) {
         val now = SystemClock.elapsedRealtime()

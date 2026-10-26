@@ -29,7 +29,7 @@ class AppInfoDialogTest {
 
     private fun show() {
         compose.setContent {
-            AfterPlayTheme(ThemePreset.BURGUNDY) {
+            AfterPlayTheme(ThemePreset.MINT) {
                 AppInfoDialog(state.value, onCheckUpdates = { checks++; state.value = UpdateStatus.Checking },
                     onOpenUrl = { opened.add(it) }, onAddQuickSettingsTile = {}, onDismiss = {}, onShowDiagnostics = { problems++ })
             }

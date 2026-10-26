@@ -11,8 +11,8 @@ android {
         applicationId = "com.afterplay.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 18
-        versionName = "1.6.5"
+        versionCode = 19
+        versionName = "1.6.6"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures { compose = true; buildConfig = true }

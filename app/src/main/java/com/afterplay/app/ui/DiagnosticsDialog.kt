@@ -25,8 +25,7 @@ import com.afterplay.app.diagnostics.displayLine
 
 @Composable
 internal fun DiagnosticsDialog(snapshot: DiagnosticSnapshot, network: String, onRefresh: () -> Unit,
-    onCopy: () -> Unit, onClear: () -> Unit, onDismiss: () -> Unit) {
-    var message by remember { mutableStateOf<String?>(null) }
+    onSave: () -> Unit, saving: Boolean, saveMessage: String?, onClear: () -> Unit, onDismiss: () -> Unit) {
     var confirmClear by remember { mutableStateOf(false) }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxWidth(.94f).fillMaxHeight(.92f), shape = RoundedCornerShape(24.dp), color = Surface) {
@@ -38,20 +37,19 @@ internal fun DiagnosticsDialog(snapshot: DiagnosticSnapshot, network: String, on
                 Text(network, color = Accent, fontSize = 13.sp, modifier = Modifier.testTag("diagnostic_network"))
                 Text(diagnosticHint(snapshot.events), fontSize = 12.sp, color = Muted)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    OutlinedButton(onClick = {
-                        message = runCatching { onCopy(); "로그를 복사했습니다." }.getOrElse { "로그를 복사하지 못했습니다." }
-                    }, modifier = Modifier.weight(1f).testTag("copy_diagnostics")) { Text("로그 복사", fontSize = 12.sp) }
+                    OutlinedButton(onClick = onSave, enabled = !saving,
+                        modifier = Modifier.weight(1f).testTag("save_diagnostics")) { Text(if (saving) "저장 중…" else "파일 저장", fontSize = 12.sp) }
                     OutlinedButton(onClick = onRefresh, modifier = Modifier.weight(1f)) { Text("새로고침", fontSize = 12.sp) }
                     OutlinedButton(onClick = { confirmClear = true }, modifier = Modifier.weight(1f).testTag("clear_diagnostics")) { Text("지우기", fontSize = 12.sp) }
                 }
-                message?.let { Text(it, fontSize = 12.sp, color = Accent) }
+                saveMessage?.let { Text(it, fontSize = 12.sp, color = Accent, modifier = Modifier.testTag("diagnostic_save_message")) }
                 if (snapshot.storageError) Text("저장소 기록에 실패하여 일부 로그가 이번 실행에만 남아 있습니다.", fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
                 LazyColumn(Modifier.weight(1f).fillMaxWidth().testTag("diagnostic_events"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     item {
                         val events = snapshot.events
                         Text("네트워크 오류 ${events.count { it.kind == DiagnosticKind.NETWORK_ERROR }} · HTTP 오류 ${events.count { it.kind == DiagnosticKind.HTTP_ERROR }} · 재버퍼링 ${events.count { it.kind == DiagnosticKind.REBUFFER }}", fontSize = 12.sp)
-                        Text("기록은 원인 판단의 단서입니다. 끊긴 직후 로그를 복사해 확인해 주세요. URL·IP·영상 제목은 저장하지 않습니다.", fontSize = 11.sp, color = Muted)
-                        Text("최근 ${minOf(100, events.size)}건 표시 · 복사 시 보관 중인 전체 ${events.size}건 포함", fontSize = 11.sp, color = Muted)
+                        Text("기록은 원인 판단의 단서입니다. 끊긴 직후 파일 저장을 눌러 로그를 저장해 주세요. URL·IP·영상 제목은 저장하지 않습니다.", fontSize = 11.sp, color = Muted)
+                        Text("최근 ${minOf(100, events.size)}건 표시 · 파일에는 보관 중인 전체 ${events.size}건 포함", fontSize = 11.sp, color = Muted)
                     }
                     if (snapshot.events.isEmpty()) item { Text("아직 기록이 없습니다. 재생 후 다시 확인해 주세요.", fontSize = 13.sp) }
                     items(snapshot.events.takeLast(100).asReversed()) { event ->
@@ -64,6 +62,6 @@ internal fun DiagnosticsDialog(snapshot: DiagnosticSnapshot, network: String, on
     }
     if (confirmClear) AlertDialog(onDismissRequest = { confirmClear = false }, title = { Text("로그를 지울까요?") },
         text = { Text("현재 보관된 로그를 지웁니다. 이후 재생 기록은 다시 쌓입니다.") },
-        confirmButton = { TextButton(onClick = { onClear(); message = null; confirmClear = false }) { Text("로그 삭제") } },
+        confirmButton = { TextButton(onClick = { onClear(); confirmClear = false }) { Text("로그 삭제") } },
         dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("취소") } })
 }

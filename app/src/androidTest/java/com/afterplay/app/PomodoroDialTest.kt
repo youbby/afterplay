@@ -29,7 +29,7 @@ class PomodoroDialTest {
 
     @Test fun countdownAndRestUseOppositeProgressAndKeepEveryControlInsideTheCircle() {
         var session by mutableStateOf(PomodoroSession())
-        var preset by mutableStateOf(ThemePreset.BURGUNDY)
+        var preset by mutableStateOf(ThemePreset.MINT)
         compose.setContent {
             AfterPlayTheme(preset) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -87,7 +87,7 @@ class PomodoroDialTest {
             compose.setContent {
                 val state by timer.state.collectAsState()
                 val notice by timer.notice.collectAsState()
-                AfterPlayTheme(ThemePreset.BURGUNDY) {
+                AfterPlayTheme(ThemePreset.MINT) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         PomodoroDial(state, notice, Modifier.size(300.dp), timer::toggle, timer::reset, timer::skip, {})
                     }

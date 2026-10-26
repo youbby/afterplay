@@ -5,21 +5,13 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
-import androidx.media3.common.util.UnstableApi
-import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
-import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
-
-/** The listener owns the retry budget; disable ExoPlayer's additional loader retries. */
-@androidx.annotation.OptIn(UnstableApi::class)
-internal class PlaybackLoadErrorPolicy : DefaultLoadErrorHandlingPolicy(0) {
-    override fun getRetryDelayMsFor(loadErrorInfo: LoadErrorHandlingPolicy.LoadErrorInfo): Long = C.TIME_UNSET
-}
 
 /** Three attempts per item, with at most one automatic skip until audio actually plays. */
 internal class PlaybackRecovery(
     private val player: Player,
     private val handler: Handler,
     private val invalidate: (String) -> Unit,
+    private val failureAttempts: (PlaybackException) -> Int = { 1 },
     private val onRecovery: (String) -> Unit = {},
 ) : Player.Listener {
     private var failures = 0
@@ -31,7 +23,7 @@ internal class PlaybackRecovery(
         player.currentMediaItem?.mediaId?.let(invalidate)
         if (!player.playWhenReady) return
         cancelPending()
-        failures++
+        failures = (failures + failureAttempts(error)).coerceAtMost(3)
         // A failed item must not trap recovery in repeat-one mode; preserve shuffle order.
         val nextIndex = player.currentTimeline.getNextWindowIndex(player.currentMediaItemIndex,
             if (player.repeatMode == Player.REPEAT_MODE_ONE) Player.REPEAT_MODE_OFF else player.repeatMode,

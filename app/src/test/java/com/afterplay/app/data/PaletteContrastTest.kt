@@ -16,6 +16,7 @@ class PaletteContrastTest {
                 }
             }
             assertTrue("${preset.name} filled control contrast", contrast(palette.emphasis, palette.background) >= 4.5)
+            assertTrue("${preset.name} artwork icon contrast", contrast(palette.onArtwork, palette.artwork) >= 4.5)
         }
     }
 

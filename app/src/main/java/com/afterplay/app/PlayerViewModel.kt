@@ -2,6 +2,7 @@ package com.afterplay.app
 
 import android.app.Application
 import android.content.ComponentName
+import android.net.Uri
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -32,6 +33,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+data class DiagnosticSaveUi(val busy: Boolean = false, val message: String? = null)
 
 data class PlaybackUi(
     val connected: Boolean = false,
@@ -80,6 +83,32 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     fun refreshDiagnostics() = app.diagnostics.refresh()
     fun clearDiagnostics() = app.diagnostics.log.clear()
     fun diagnosticReport(): String = app.diagnostics.report()
+    private val _diagnosticSave = MutableStateFlow(DiagnosticSaveUi())
+    val diagnosticSave = _diagnosticSave.asStateFlow()
+    fun beginDiagnosticSave(): Boolean {
+        if (_diagnosticSave.value.busy) return false
+        _diagnosticSave.value = DiagnosticSaveUi(busy = true)
+        return true
+    }
+    fun cancelDiagnosticSave() { _diagnosticSave.value = DiagnosticSaveUi(message = "로그 저장을 취소했습니다.") }
+    fun diagnosticSaveUnavailable() { _diagnosticSave.value = DiagnosticSaveUi(message = "파일 저장 화면을 열지 못했습니다.") }
+    fun saveDiagnostics(uri: Uri) {
+        _diagnosticSave.value = DiagnosticSaveUi(busy = true)
+        viewModelScope.launch {
+            try {
+                val report = diagnosticReport()
+                withContext(Dispatchers.IO) {
+                    val output = app.contentResolver.openOutputStream(uri, "wt")
+                        ?: throw java.io.IOException("Document provider returned no stream")
+                    output.bufferedWriter(Charsets.UTF_8).use { it.write(report) }
+                }
+                _diagnosticSave.value = DiagnosticSaveUi(message = "로그 파일을 저장했습니다.")
+            } catch (error: Exception) {
+                if (error is CancellationException) throw error
+                _diagnosticSave.value = DiagnosticSaveUi(message = "로그 파일을 저장하지 못했습니다. 저장 위치와 여유 공간을 확인해 주세요.")
+            }
+        }
+    }
     private val _updateStatus = MutableStateFlow<UpdateStatus>(UpdateStatus.Idle)
     val updateStatus = _updateStatus.asStateFlow()
     fun checkForUpdates() {

@@ -64,12 +64,12 @@ class WorkspaceLayoutTest {
         if (app.focusGuard.requiresAuthentication) instrumentation.runOnMainSync { app.focusGuard.unlockAfterAuthentication() }
         else compose.onNodeWithTag("focus_unlock").performClick()
         assertFalse(app.focusGuard.locked.value)
-        for (theme in listOf(ThemePreset.BURGUNDY, ThemePreset.SLATE)) {
+        for (theme in listOf(ThemePreset.MINT, ThemePreset.SLATE)) {
             instrumentation.runOnMainSync { app.appearance.select(theme) }
             compose.waitForIdle()
             capture("workspace-${if (tablet) "tablet" else "phone"}-${theme.name.lowercase()}.png")
         }
-        instrumentation.runOnMainSync { app.appearance.select(ThemePreset.BURGUNDY) }
+        instrumentation.runOnMainSync { app.appearance.select(ThemePreset.MINT) }
     }
 
     private fun capture(name: String) {
