@@ -2,12 +2,21 @@ package com.afterplay.app.ui
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.afterplay.app.PlayerViewModel
 import com.afterplay.app.data.PomodoroConfig
@@ -36,4 +45,21 @@ internal fun PomodoroSettingsDialog(model: PlayerViewModel, dismiss: () -> Unit)
                 dismiss()
             }) { Text("저장") }
         }, dismissButton = { TextButton(onClick = dismiss) { Text("취소") } })
+}
+
+@Composable
+private fun DurationField(label: String, tag: String, value: String, range: IntRange, unit: String = "분", change: (String) -> Unit) {
+    val keyboard = LocalSoftwareKeyboardController.current
+    val valid = (value.toIntOrNull() ?: 0) in range
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(label, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            Text("${range.first}–${range.last}$unit", fontSize = 11.sp, color = Muted)
+        }
+        OutlinedTextField(value = value, onValueChange = { change(it.filter(Char::isDigit).take(3)) },
+            modifier = Modifier.width(108.dp).testTag(tag), singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { keyboard?.hide() }), suffix = { Text(unit) },
+            isError = !valid, label = { Text(label, fontSize = 11.sp) })
+    }
 }

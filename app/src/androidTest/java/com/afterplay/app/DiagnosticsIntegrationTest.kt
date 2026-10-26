@@ -2,7 +2,6 @@ package com.afterplay.app
 
 import android.content.ClipboardManager
 import android.content.ComponentName
-import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import androidx.compose.ui.test.*

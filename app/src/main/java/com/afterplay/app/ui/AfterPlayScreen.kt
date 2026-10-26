@@ -20,7 +20,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalView
@@ -43,6 +42,8 @@ import com.afterplay.app.data.Playlist
 import com.afterplay.app.data.AppMode
 import com.afterplay.app.data.Track
 import java.util.Locale
+
+private enum class SettingsDialog { THEME, POMODORO }
 
 @Composable
 fun AfterPlayScreen(model: PlayerViewModel, onAddQuickSettingsTile: () -> Unit = {}, onThemeChanged: (Boolean) -> Unit = {},
@@ -71,7 +72,7 @@ fun AfterPlayScreen(model: PlayerViewModel, onAddQuickSettingsTile: () -> Unit =
         model.refreshPomodoro()
         onPauseOrDispose { }
     }
-    var settingsTab by rememberSaveable { mutableStateOf<Int?>(null) }
+    var settingsDialog by rememberSaveable { mutableStateOf<SettingsDialog?>(null) }
     val message by model.message.collectAsStateWithLifecycle()
     val sharedLink by model.sharedLink.collectAsStateWithLifecycle()
     val adding by model.adding.collectAsStateWithLifecycle()
@@ -106,10 +107,10 @@ fun AfterPlayScreen(model: PlayerViewModel, onAddQuickSettingsTile: () -> Unit =
                 Text("이어듣기", fontWeight = FontWeight.Bold, fontSize = 21.sp,
                     modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (!workspace) {
-                    FocusLockButton(focusLocked, onLock = { model.lockFocus() }, tint = Muted)
+                    FocusLockButton(focusLocked, onLock = { model.lockFocus() }, tint = Accent)
                     AppModeButton(appMode, model::toggleAppMode, Muted)
                 }
-                IconButton(onClick = { settingsTab = 0 }) { Icon(Icons.Rounded.Palette, "앱 설정", tint = Muted) }
+                IconButton(onClick = { settingsDialog = SettingsDialog.THEME }) { Icon(Icons.Rounded.Palette, "앱 설정", tint = Muted) }
                 IconButton(onClick = { showAbout = true }) { Icon(Icons.Rounded.Info, "앱 정보", tint = Muted) }
             }
         }
@@ -121,9 +122,6 @@ fun AfterPlayScreen(model: PlayerViewModel, onAddQuickSettingsTile: () -> Unit =
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("내 재생목록", fontWeight = FontWeight.Bold, fontSize = 19.sp)
                         Spacer(Modifier.weight(1f))
-                        if (workspace) IconButton(onClick = { showAbout = true }, modifier = Modifier.size(32.dp)) {
-                            Icon(Icons.Rounded.Info, "앱 정보", tint = Muted, modifier = Modifier.size(20.dp))
-                        }
                         TextButton(onClick = { newList = true }) {
                             Icon(Icons.Rounded.Add, null, Modifier.size(18.dp)); Text(" 새 목록")
                         }
@@ -193,13 +191,18 @@ fun AfterPlayScreen(model: PlayerViewModel, onAddQuickSettingsTile: () -> Unit =
             bottomBar = { if (!workspace) PlayerPanel(playback, model) }) { padding ->
             Box(Modifier.fillMaxSize().padding(padding)) {
                 if (workspace) LandscapeWorkspace(playback, model, selected, libraryContent,
-                    onSettings = { settingsTab = it })
+                    onThemeSettings = { settingsDialog = SettingsDialog.THEME },
+                    onPomodoroSettings = { settingsDialog = SettingsDialog.POMODORO }, onInfo = { showAbout = true })
                 else libraryContent()
             }
         }
         }
         if (!focusLocked) {
-        settingsTab?.let { tab -> AppSettingsDialog(model, theme, tab) { settingsTab = null } }
+        when (settingsDialog) {
+            SettingsDialog.THEME -> ThemeSettingsDialog(model, theme) { settingsDialog = null }
+            SettingsDialog.POMODORO -> PomodoroSettingsDialog(model) { settingsDialog = null }
+            null -> Unit
+        }
         if (newList) NameDialog("새 재생목록", "", { newList = false }) { model.createPlaylist(it); newList = false }
         rename?.let { list -> NameDialog("이름 변경", list.name, { rename = null }) { model.renamePlaylist(list.id, it); rename = null } }
         delete?.let { list ->
@@ -358,11 +361,11 @@ internal fun SleepTimerControls(state: PlaybackUi, onOpen: () -> Unit, onCancel:
             Icon(Icons.Rounded.Bedtime, "수면 모드 설정", Modifier.size(18.dp),
                 tint = if (state.sleepTimerActive) Accent else Muted)
             Spacer(Modifier.width(6.dp))
-            Text("수면 모드", color = if (state.sleepTimerActive) Accent else Muted, fontSize = 12.sp)
+            Text("수면 모드", color = if (state.sleepTimerActive) Accent else Muted, fontSize = 12.sp, lineHeight = 16.sp)
         }
         Spacer(Modifier.weight(1f))
         if (state.sleepTimerActive) {
-            Text("${clockTime(state.sleepRemainingMs + 999)} 후 종료", color = Accent, fontSize = 12.sp)
+            Text("${clockTime(state.sleepRemainingMs + 999)} 후 종료", color = Accent, fontSize = 12.sp, lineHeight = 16.sp)
             IconButton(onClick = onCancel, modifier = Modifier.size(36.dp)) {
                 Icon(Icons.Rounded.Close, "수면 타이머 해제", tint = Muted, modifier = Modifier.size(18.dp))
             }
@@ -396,8 +399,9 @@ internal fun SleepTimerDialog(state: PlaybackUi, model: PlayerViewModel, dismiss
 }
 
 @Composable
-internal fun Control(icon: ImageVector, description: String, action: () -> Unit, active: Boolean = false, enabled: Boolean = true) {
-    IconButton(onClick = action, enabled = enabled) {
+internal fun Control(icon: ImageVector, description: String, action: () -> Unit, active: Boolean = false, enabled: Boolean = true,
+    modifier: Modifier = Modifier) {
+    IconButton(onClick = action, enabled = enabled, modifier = modifier) {
         Icon(icon, description, tint = if (!enabled) Muted.copy(alpha = .3f) else if (active) Accent else Muted)
     }
 }

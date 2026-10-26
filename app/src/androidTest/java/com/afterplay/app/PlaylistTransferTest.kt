@@ -1,7 +1,6 @@
 package com.afterplay.app
 
 import android.content.ComponentName
-import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
 import android.os.Bundle
 import androidx.compose.ui.semantics.SemanticsProperties

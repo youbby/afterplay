@@ -41,14 +41,42 @@ class WorkspaceLayoutTest {
         val timerText = compose.onNodeWithTag("pomodoro_remaining").fetchSemanticsNode().boundsInRoot
         assertTrue(timerText.height > clockText.height)
         assertTrue(abs(timerText.center.y - timer.center.y) < timer.height * .3f)
+        val playerArea = compose.onNodeWithTag("compact_player").getUnclippedBoundsInRoot()
+        val controls = compose.onNodeWithTag("compact_playback_controls").getUnclippedBoundsInRoot()
+        assertTrue("All playback controls must fit without scrolling", controls.top >= playerArea.top && controls.bottom <= playerArea.bottom &&
+            controls.left >= playerArea.left && controls.right <= playerArea.right)
+        compose.onNodeWithTag("compact_player_content").assert(SemanticsMatcher("Player must not scroll") {
+            !it.config.contains(androidx.compose.ui.semantics.SemanticsActions.ScrollBy)
+        })
+        for (description in listOf("수면 모드 설정", "이전 곡", "재생", "다음 곡", "앱 정보")) {
+            compose.onNodeWithContentDescription(description).assertIsDisplayed()
+        }
+        compose.onNodeWithTag("compact_player_content").performTouchInput { swipeUp() }
+        assertEquals("Swiping must not move playback buttons", controls,
+            compose.onNodeWithTag("compact_playback_controls").getUnclippedBoundsInRoot())
+        compose.onNodeWithContentDescription("앱 정보").performClick()
+        compose.onNodeWithTag("app_version").assertIsDisplayed()
+        compose.onNodeWithTag("check_updates").assertExists()
+        compose.onNodeWithText("확인").performClick()
+        compose.onNodeWithTag("focus_lock").assertTextContains("열림").performClick()
+        compose.onNodeWithTag("focus_unlock").assertIsDisplayed().assertTextContains("잠김")
+        capture("compact-${if (tablet) "tablet" else "phone"}-locked.png")
+        if (app.focusGuard.requiresAuthentication) instrumentation.runOnMainSync { app.focusGuard.unlockAfterAuthentication() }
+        else compose.onNodeWithTag("focus_unlock").performClick()
+        assertFalse(app.focusGuard.locked.value)
         for (theme in listOf(ThemePreset.BURGUNDY, ThemePreset.SLATE)) {
             instrumentation.runOnMainSync { app.appearance.select(theme) }
             compose.waitForIdle()
-            val bitmap = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
-            try { File(context.getExternalFilesDir(null), "workspace-${if (tablet) "tablet" else "phone"}-${theme.name.lowercase()}.png")
-                .outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) } }
-            finally { bitmap.recycle() }
+            capture("workspace-${if (tablet) "tablet" else "phone"}-${theme.name.lowercase()}.png")
         }
         instrumentation.runOnMainSync { app.appearance.select(ThemePreset.BURGUNDY) }
+    }
+
+    private fun capture(name: String) {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val bitmap = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
+        try { File(instrumentation.targetContext.getExternalFilesDir(null), name).outputStream().use {
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
+        } } finally { bitmap.recycle() }
     }
 }
