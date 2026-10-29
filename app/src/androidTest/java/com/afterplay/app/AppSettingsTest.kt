@@ -107,6 +107,7 @@ class AppSettingsTest {
         instrumentation.runOnMainSync {
             app.pomodoro.configure(PomodoroConfig(20, 5, 30, 3))
             app.pomodoro.toggle()
+            app.pomodoro.refreshAt(app.pomodoro.state.value.deadlineMs) // Finish preparation before interrupting focus.
             app.pomodoro.skip()
             app.pomodoro.toggle()
             val restored = PomodoroTimer(context).state.value
@@ -137,6 +138,7 @@ class AppSettingsTest {
                 compose.onAllNodesWithText("차분한 피아노와 함께하는 집중 시간").fetchSemanticsNodes().isNotEmpty()
             }
             togglePomodoro()
+            compose.waitUntil(15_000) { !app.pomodoro.state.value.preparing }
             val deadline = app.pomodoro.state.value.deadlineMs
             for (preset in ThemePreset.entries) {
                 compose.onNodeWithContentDescription("앱 설정").performClick()

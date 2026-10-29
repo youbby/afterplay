@@ -291,3 +291,16 @@ Android 16 / API 36 에뮬레이터 검증 **10건 통과**:
 
 APK: `artifacts/AfterPlay-1.5.1-release.apk`.
 SHA-256: `6e34690e8c1510c467cff8dc4db47f4d30c5825e13e8b8f8bace297a122164b3`.
+
+## 2026-10-29 · v1.6.7 로컬 검증: 기기 내 얼굴 감지·집계와 준비 10초
+
+- ML Kit Face Detection 16.1.7의 모델 포함 의존성을 사용했습니다. 촬영 컷의 실제 정사각형 영상 영역에서 얼굴 감지 여부를 확인하고, 이미지와 함께 앱 내부에 결과를 보관합니다. 감지 오류는 정상적인 미감지(이탈)로 집계하지 않으며 수집된 부분 영상을 보존합니다.
+- 실제 촬영 컷 수를 분모로 집중·이탈 비율을 계산합니다. 길이를 채우는 반복 프레임은 중복 집계하지 않습니다. 마지막 3초에 `00% 집중 / 00% 이탈`, `전체 N컷 중 이탈 M컷`을 표시하여 완성 영상은 최대 63초입니다. 이전 버전의 감지 기록 없는 컷은 별도 표시합니다.
+- 새 묶음의 최초 시작 전 준비 10초를 추가했습니다. 준비 중에는 촬영하지 않고 집중 시간도 소모하지 않습니다. 준비 중 일시정지·복원·재개, 화면 재생성, 지연 갱신, 준비 중 건너뛰기, 완료 후 명시적 재시작을 검사했습니다. 일반 집중 재개와 다음 회차에는 준비 시간을 다시 적용하지 않습니다.
+- Debug 및 Release 빌드·단위 테스트·Lint 성공. 각 variant의 단위 테스트는 63개 중 62개 통과, 외부 YouTube 네트워크 검사 1개는 기본 설정대로 제외했습니다. 로그: `artifacts/presence-preparation-final-build.log`, `artifacts/presence-preparation-release-build.log`.
+- Android 16/API 36 에뮬레이터에서 Wi-Fi·모바일 데이터를 끈 상태로 얼굴 사진/빈 화면의 감지, 실제 전면 카메라 촬영, 준비·휴식 제외, 백그라운드·Activity 재생성 유지, 자동 저장과 중단 복구를 검사했습니다. 대상 26개 중 기기 인증이 필요한 3개는 인증 미설정으로 제외했고, 나머지 23개는 최종 통과했습니다. 최초 검사에서 준비 단계의 접근성 트리 조회와 준비 완료 전 마감 시각을 고정한 기존 테스트 가정을 수정했으며 관련 3개 재검사 모두 통과했습니다. 로그: `artifacts/presence-preparation-device-tests.log`, `artifacts/presence-preparation-device-retests.log`.
+- 실제 12컷(집중 8·이탈 4)을 4회차 영상 1,800프레임으로 늘린 경우에도 집계는 **67% 집중 / 33% 이탈, 전체 12컷 중 이탈 4컷**을 유지했습니다. 집계 90프레임을 더한 총 1,890프레임 영상은 정확히 63초, 720×720, 무음입니다. 영상에서 추출한 마지막 화면의 한글·배치를 시각 확인했습니다: `artifacts/presence-summary-encoded.png`. 준비 화면: `artifacts/hyperlapse-preparation.png`.
+- 실기기 장시간 촬영과 자세·조명에 따른 감지 정확도는 이번 검증에 포함하지 않았습니다. 집중·이탈은 얼굴 감지 여부의 집계이며 실제 집중도나 신원 판정이 아닙니다.
+
+설치 APK: [AfterPlay-1.6.7-release.apk](https://github.com/youbby/afterplay/releases/download/v1.6.7/AfterPlay-1.6.7-release.apk) (기존 공개 배포판과 같은 인증서 서명 확인).
+SHA-256: `4b74fd26e1404264441ee29550d66f7502ffbe50f9975a9a7fb6a92d1c4abaaf`.

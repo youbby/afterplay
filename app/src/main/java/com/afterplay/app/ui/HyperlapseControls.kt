@@ -119,7 +119,7 @@ internal fun HyperlapsePreviewDialog(onCancel: () -> Unit, onConfirm: (Int) -> U
                     }
                     Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.SpaceBetween) {
                         Text("하이퍼랩스", style = MaterialTheme.typography.titleLarge)
-                        Text(error ?: "전면 카메라 · 1:1 · 무음\n집중 1회당 15초\n휴식 중에는 촬영하지 않습니다.",
+                        Text(error ?: "전면 카메라 · 1:1 · 무음\n집중 1회당 15초 + 마지막 집계 3초\n각 촬영 컷을 기기 안에서 분석합니다.\n얼굴 감지: 집중 / 미감지: 이탈\n준비·휴식 중에는 촬영하지 않습니다.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = if (error != null) MaterialTheme.colorScheme.error else Muted)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {

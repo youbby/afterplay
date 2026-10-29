@@ -14,7 +14,7 @@ import java.nio.ByteOrder
 /** Offline encoding processes only the sampled frames, never a full-length source movie. */
 internal object HyperlapseEncoder {
     fun encode(frames: List<File>, output: File, onProgress: (Int) -> Unit = {}) {
-        require(frames.isNotEmpty() && frames.size <= HyperlapsePlan.MAX_FRAMES)
+        require(frames.isNotEmpty() && frames.size <= HyperlapsePlan.MAX_ENCODED_FRAMES)
         val codec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
         var muxer: MediaMuxer? = null
         var renderer: FrameRenderer? = null

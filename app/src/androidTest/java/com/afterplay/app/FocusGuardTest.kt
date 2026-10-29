@@ -150,6 +150,7 @@ class FocusGuardTest {
         compose.onNodeWithText("POMODORO").assertDoesNotExist()
         compose.onNodeWithTag("pomodoro_toggle").performClick()
         instrumentation.runOnMainSync { app.focusGuard.unlockAfterAuthentication() }
+        compose.waitUntil(15_000) { !app.pomodoro.state.value.preparing }
         assertTrue(compose.onNodeWithTag("pomodoro_status_badge").fetchSemanticsNode()
             .config[SemanticsProperties.StateDescription].contains("ON AIR"))
         compose.onNodeWithContentDescription("다음 뽀모도로 단계").performClick()

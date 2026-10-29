@@ -118,6 +118,7 @@ class AppModeIntegrationTest {
             }
             assertEquals(AppMode.POMODORO, app.appMode.state.value)
             assertTrue(app.focusGuard.locked.value)
+            compose.waitUntil(15_000) { !app.pomodoro.state.value.preparing }
             val deadline = app.pomodoro.state.value.deadlineMs
             assertNotNull(deadline)
             compose.onNodeWithTag("focus_unlock").performClick()

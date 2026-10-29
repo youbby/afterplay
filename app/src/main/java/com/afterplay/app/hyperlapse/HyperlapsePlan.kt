@@ -6,6 +6,9 @@ object HyperlapsePlan {
     const val SECONDS_PER_ROUND = 15
     const val FRAMES_PER_ROUND = FPS * SECONDS_PER_ROUND
     const val MAX_FRAMES = FRAMES_PER_ROUND * 4
+    const val SUMMARY_SECONDS = 3
+    const val SUMMARY_FRAMES = FPS * SUMMARY_SECONDS
+    const val MAX_ENCODED_FRAMES = MAX_FRAMES + SUMMARY_FRAMES
     const val SIZE = 720
 
     fun slot(durationMs: Long, remainingMs: Long): Int {

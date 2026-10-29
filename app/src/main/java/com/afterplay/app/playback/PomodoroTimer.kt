@@ -45,7 +45,8 @@ class PomodoroTimer(context: Context) {
         }
         mutableState.value = after
         if (before.phase != after.phase || before.completedFocusSessions != after.completedFocusSessions ||
-            before.roundIndex != after.roundIndex || before.roundResults != after.roundResults || before.finished != after.finished) save(after)
+            before.roundIndex != after.roundIndex || before.roundResults != after.roundResults || before.finished != after.finished ||
+            before.preparing != after.preparing) save(after)
         scheduleTick()
     }
 
@@ -70,6 +71,7 @@ class PomodoroTimer(context: Context) {
             .putInt("long_break_minutes", state.config.longBreakMinutes).putInt("repeat_count", state.config.repeatCount)
             .putInt("round_index", state.roundIndex).putString("round_results", state.roundResults.joinToString(",") { it.name })
             .putBoolean("focus_started", state.focusStarted)
+            .putBoolean("preparation_pending", state.preparationPending).putLong("preparation_remaining_ms", state.preparationRemainingMs)
             .putBoolean("finished", state.finished).putLong("finished_at", state.finishedAtMs).apply()
     }
 
@@ -81,7 +83,10 @@ class PomodoroTimer(context: Context) {
             preferences.getInt("short_break_minutes", 5).coerceIn(5, 10),
             preferences.getInt("long_break_minutes", 30).coerceIn(30, 60), preferences.getInt("repeat_count", 4).coerceIn(1, 4))
         val now = System.currentTimeMillis()
-        val deadline = preferences.getLong("deadline_ms", 0).let { if (it > now + config.durationMs(phase)) now + config.durationMs(phase) else it }
+        val preparation = if (finished || phase != PomodoroPhase.FOCUS) 0L
+            else preferences.getLong("preparation_remaining_ms", 0).coerceIn(0, PomodoroSession.PREPARATION_MS)
+        val maxRemaining = if (preparation > 0) PomodoroSession.PREPARATION_MS else config.durationMs(phase)
+        val deadline = preferences.getLong("deadline_ms", 0).coerceAtMost(now + maxRemaining)
         val legacyCompleted = preferences.getInt("completed", 0).coerceAtLeast(0)
         val completed = legacyCompleted.coerceAtMost(config.repeatCount)
         val legacyRound = if (phase == PomodoroPhase.FOCUS) legacyCompleted % config.repeatCount else (legacyCompleted - 1).coerceAtLeast(0) % config.repeatCount
@@ -93,6 +98,11 @@ class PomodoroTimer(context: Context) {
             remainingMs = if (finished) 0 else preferences.getLong("remaining_ms", config.durationMs(phase)).coerceIn(1, config.durationMs(phase)),
             running = !finished && running && deadline > 0, completedFocusSessions = completed, deadlineMs = if (finished) 0 else deadline,
             roundIndex = round, roundResults = results,
+            preparationRemainingMs = preparation,
+            preparationPending = preferences.getBoolean("preparation_pending", !running && !finished && round == 0 &&
+                phase == PomodoroPhase.FOCUS && results.all { it == PomodoroRound.PENDING } &&
+                !preferences.getBoolean("focus_started", false) &&
+                preferences.getLong("remaining_ms", config.durationMs(phase)) == config.durationMs(phase)),
             finished = finished, finishedAtMs = preferences.getLong("finished_at", 0).coerceAtLeast(0),
             focusStarted = phase == PomodoroPhase.FOCUS && preferences.getBoolean("focus_started",
                 running || preferences.getLong("remaining_ms", config.durationMs(phase)) <

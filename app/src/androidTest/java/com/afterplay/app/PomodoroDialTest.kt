@@ -27,6 +27,44 @@ import org.junit.runner.RunWith
 class PomodoroDialTest {
     @get:Rule val compose = createComposeRule()
 
+    @Test fun preparationCanPauseRestoreAndResumeWithoutConsumingFocusOrFlashingCompletion() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        lateinit var timer: PomodoroTimer
+        instrumentation.runOnMainSync {
+            (context.applicationContext as AfterPlayApp).pomodoro.reset()
+            timer = PomodoroTimer(context)
+            timer.reset()
+            timer.toggle()
+        }
+        try {
+            compose.waitUntil(5_000) { timer.state.value.preparationRemainingMs <= 8_000 }
+            instrumentation.runOnMainSync {
+                timer.toggle()
+                val paused = timer.state.value
+                assertTrue(paused.preparing)
+                assertFalse(paused.focusStarted)
+                val restored = PomodoroTimer(context)
+                assertEquals(paused, restored.state.value)
+                timer = restored
+            }
+            compose.setContent {
+                val session by timer.state.collectAsState()
+                val notice by timer.notice.collectAsState()
+                AfterPlayTheme(ThemePreset.MINT) {
+                    PomodoroDial(session, notice, Modifier.size(300.dp), timer::toggle, timer::reset, timer::skip, {})
+                }
+            }
+            compose.onNodeWithTag("pomodoro_phase").assertTextEquals("준비")
+            compose.onNodeWithContentDescription("뽀모도로 준비 계속").performClick()
+            compose.waitUntil(12_000) { !timer.state.value.preparing }
+            compose.onNodeWithTag("pomodoro_phase").assertTextEquals("집중")
+            assertTrue(timer.state.value.focusStarted)
+            assertTrue(timer.state.value.remainingMs > timer.state.value.durationMs - 2_000)
+            assertNull(timer.notice.value)
+        } finally { instrumentation.runOnMainSync { timer.reset() } }
+    }
+
     @Test fun countdownAndRestUseOppositeProgressAndKeepEveryControlInsideTheCircle() {
         var session by mutableStateOf(PomodoroSession())
         var preset by mutableStateOf(ThemePreset.MINT)

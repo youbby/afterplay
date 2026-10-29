@@ -11,8 +11,8 @@ android {
         applicationId = "com.afterplay.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 19
-        versionName = "1.6.6"
+        versionCode = 20
+        versionName = "1.6.7"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures { compose = true; buildConfig = true }
@@ -43,6 +43,7 @@ dependencies {
     implementation("androidx.camera:camera-camera2:1.5.3")
     implementation("androidx.camera:camera-lifecycle:1.5.3")
     implementation("androidx.camera:camera-view:1.5.3")
+    implementation("com.google.mlkit:face-detection:16.1.7") // Bundled model: works offline from first capture.
     implementation("androidx.datastore:datastore-preferences:1.1.7")
     implementation("androidx.media3:media3-exoplayer:1.8.0")
     implementation("androidx.media3:media3-session:1.8.0")

@@ -68,7 +68,15 @@ class HyperlapseTest {
             compose.waitForIdle()
             assertTrue(app.hyperlapse.state.value.enabled)
             compose.onNodeWithTag("pomodoro_toggle").performClick()
-            compose.waitUntil(15_000) { app.hyperlapse.state.value.recording }
+            assertTrue(app.pomodoro.state.value.preparing)
+            assertFalse(app.hyperlapse.state.value.recording)
+            compose.onNodeWithTag("pomodoro_phase", useUnmergedTree = true).assertTextEquals("준비")
+            screenshot("hyperlapse-preparation.png")
+            val preparationDeadline = app.pomodoro.state.value.deadlineMs
+            compose.activityRule.scenario.recreate()
+            compose.waitForIdle()
+            assertEquals(preparationDeadline, app.pomodoro.state.value.deadlineMs)
+            compose.waitUntil(25_000) { app.hyperlapse.state.value.recording }
             assertTrue(app.focusGuard.locked.value)
             compose.onNodeWithTag("focus_unlock").performClick()
             compose.onNodeWithContentDescription("하이퍼랩스 촬영 중 · 끄기").assertIsDisplayed()
@@ -99,7 +107,7 @@ class HyperlapseTest {
                 try {
                     extractor.setDataSource(fd.fileDescriptor)
                     assertEquals(1, extractor.trackCount)
-                    assertTrue(extractor.getTrackFormat(0).getLong(MediaFormat.KEY_DURATION) <= 15_000_000)
+                    assertTrue(extractor.getTrackFormat(0).getLong(MediaFormat.KEY_DURATION) <= 18_000_000)
                 } finally { extractor.release() }
             }
             val retriever = MediaMetadataRetriever()
@@ -116,7 +124,7 @@ class HyperlapseTest {
         }
     }
 
-    @Test fun twoNaturalFocusCompletionsExcludeRestAndAutomaticallySaveThirtySeconds() {
+    @Test fun twoNaturalFocusCompletionsExcludeRestAndAppendThreeSecondSummary() {
         pomodoro()
         val root = File(compose.activity.filesDir, "hyperlapse")
         try {
@@ -126,7 +134,7 @@ class HyperlapseTest {
             }
             for (round in 0..1) {
                 compose.onNodeWithTag("pomodoro_toggle").performClick()
-                val deadline = SystemClock.elapsedRealtime() + 20_000
+                val deadline = SystemClock.elapsedRealtime() + 30_000
                 while (SystemClock.elapsedRealtime() < deadline && root.walkTopDown().none { it.name.startsWith("${round}_") }) SystemClock.sleep(200)
                 assertTrue("Focus $round must capture an actual camera image", root.walkTopDown().any { it.name.startsWith("${round}_") })
                 compose.onNodeWithTag("focus_unlock").performClick()
@@ -150,7 +158,7 @@ class HyperlapseTest {
                 try {
                     extractor.setDataSource(fd.fileDescriptor)
                     assertEquals(1, extractor.trackCount)
-                    assertEquals(30_000_000L, extractor.getTrackFormat(0).getLong(MediaFormat.KEY_DURATION))
+                    assertEquals(33_000_000L, extractor.getTrackFormat(0).getLong(MediaFormat.KEY_DURATION))
                 } finally { extractor.release() }
             }
         } finally {
@@ -174,7 +182,7 @@ class HyperlapseTest {
             val extractor = MediaExtractor()
             try {
                 extractor.setDataSource(fd.fileDescriptor)
-                assertEquals(3_000_000L, extractor.getTrackFormat(0).getLong(MediaFormat.KEY_DURATION))
+                assertEquals(6_000_000L, extractor.getTrackFormat(0).getLong(MediaFormat.KEY_DURATION))
             } finally { extractor.release() }
         }
     }

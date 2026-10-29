@@ -50,6 +50,7 @@ class HyperlapseController(private val context: Context, private val timer: Pomo
     private var binding = false
     private var spool: HyperlapseFrames? = null
     @Volatile private var captureSpool: HyperlapseFrames? = null
+    private var presenceDetector: HyperlapsePresenceDetector? = null // Accessed only on worker.
     private var rotation = Surface.ROTATION_90
     private var before = timer.state.value
     private val root = File(context.filesDir, "hyperlapse")
@@ -134,7 +135,7 @@ class HyperlapseController(private val context: Context, private val timer: Pomo
 
     private fun syncCamera(session: PomodoroSession) {
         val active = state.value.enabled && spool != null && !state.value.saving &&
-            session.running && !session.finished && session.phase == PomodoroPhase.FOCUS
+            session.running && !session.preparing && !session.finished && session.phase == PomodoroPhase.FOCUS
         if (active && owner != null) {
             captureSpool = spool
             mutableState.value = state.value.copy(recording = true)
@@ -143,7 +144,9 @@ class HyperlapseController(private val context: Context, private val timer: Pomo
         } else {
             closeCamera()
             mutableState.value = state.value.copy(recording = false)
-            if (spool != null && !state.value.saving) updateNotification?.invoke("휴식·일시정지 중 · 다음 집중 때 촬영을 이어갑니다", false)
+            if (spool != null && !state.value.saving) updateNotification?.invoke(
+                if (session.preparing) "10초 준비 중 · 집중 시작부터 촬영합니다"
+                else "휴식·일시정지 중 · 다음 집중 때 촬영을 이어갑니다", false)
         }
     }
 
@@ -164,9 +167,12 @@ class HyperlapseController(private val context: Context, private val timer: Pomo
                         val frames = captureSpool ?: return@setAnalyzer
                         val now = System.currentTimeMillis()
                         val session = timer.state.value.advance(now)
-                        if (session.running && !session.finished && session.phase == PomodoroPhase.FOCUS) {
+                        if (session.running && !session.preparing && !session.finished && session.phase == PomodoroPhase.FOCUS) {
                             val slot = HyperlapsePlan.slot(session.durationMs, session.remainingMs)
-                            if (!frames.hasSlot(session.roundIndex, slot)) frames.capture(image, session.roundIndex, slot, now)
+                            if (!frames.hasSlot(session.roundIndex, slot)) {
+                                val detector = presenceDetector ?: HyperlapsePresenceDetector().also { presenceDetector = it }
+                                frames.capture(image, session.roundIndex, slot, now, detector::isPresent)
+                            }
                         }
                     } catch (error: Exception) {
                         scope.launch { fail("촬영이 중단됐어요. 수집된 영상은 저장합니다.") }
@@ -197,6 +203,7 @@ class HyperlapseController(private val context: Context, private val timer: Pomo
         val frames = spool ?: return
         spool = null
         closeCamera()
+        worker.execute { presenceDetector?.close(); presenceDetector = null }
         mutableState.value = state.value.copy(recording = false, saving = true, progress = 0)
         updateNotification?.invoke("하이퍼랩스 영상 저장 중", true)
         scope.launch {
@@ -215,7 +222,7 @@ class HyperlapseController(private val context: Context, private val timer: Pomo
     private suspend fun export(frames: HyperlapseFrames) {
         try {
             val uri = withContext(dispatcher) {
-                val sources = frames.videoFrames()
+                val sources = frames.exportFrames()
                 if (sources.isEmpty()) { frames.clear(); return@withContext null }
                 val output = File(frames.directory, "output.mp4")
                 HyperlapseEncoder.encode(sources, output) { progress ->

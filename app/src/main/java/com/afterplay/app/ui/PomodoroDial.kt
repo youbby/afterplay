@@ -68,7 +68,7 @@ internal fun PomodoroDial(
     val foreground = if (inverted) palette.background else accent
     val muted = if (inverted) palette.background else palette.muted
     val filled by animateFloatAsState(timer.dialFraction, tween(250, easing = LinearEasing), label = "dial fill")
-    val phaseLabel = if (timer.finished) "종료" else timer.phase.label
+    val phaseLabel = if (timer.finished) "종료" else if (timer.preparing) "준비" else timer.phase.label
     Surface(modifier.testTag("pomodoro_panel").semantics { stateDescription = if (inverted) "완료 알림 반전" else "기본" },
         shape = RoundedCornerShape(24.dp), color = cardColor, contentColor = foreground,
         border = BorderStroke(1.dp, accent.copy(alpha = .25f))) {
@@ -77,12 +77,13 @@ internal fun PomodoroDial(
             val diameter = minOf(maxWidth, maxHeight)
             val scale = (diameter.value / 280f).coerceIn(.7f, 1.5f)
             val innerSize = diameter * .72f
-            val time = pomodoroTime(timer.remainingMs)
+            val time = pomodoroTime(timer.displayRemainingMs)
             val fontScale = LocalDensity.current.fontScale
             val timeSize = minOf(diameter.value * .21f, 100f, innerSize.value / (time.length * .62f * fontScale)).sp
             Box(Modifier.size(diameter).testTag("pomodoro_dial"), contentAlignment = Alignment.Center) {
                 Canvas(Modifier.fillMaxSize().testTag("pomodoro_dial_ring").progressSemantics(filled).semantics {
-                    contentDescription = if (timer.phase == PomodoroPhase.FOCUS) "집중 남은 시간 다이얼" else "휴식 경과 시간 다이얼"
+                    contentDescription = if (timer.preparing) "준비 남은 시간 다이얼"
+                        else if (timer.phase == PomodoroPhase.FOCUS) "집중 남은 시간 다이얼" else "휴식 경과 시간 다이얼"
                 }) {
                     val stroke = (size.minDimension * .045f).coerceAtLeast(4.dp.toPx())
                     val inset = stroke / 2 + 2.dp.toPx()
@@ -113,7 +114,7 @@ internal fun PomodoroDial(
                         }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        val live = timer.running && timer.phase == PomodoroPhase.FOCUS
+                        val live = timer.running && !timer.preparing && timer.phase == PomodoroPhase.FOCUS
                         Row(Modifier.testTag("pomodoro_status_badge").semantics {
                             stateDescription = if (live) "ON AIR · 집중 진행 중" else "$phaseLabel · 일반 표시"
                         }.shadow(if (live) 6.dp else 0.dp, RoundedCornerShape(6.dp),
@@ -140,6 +141,7 @@ internal fun PomodoroDial(
                                 Icon(Icons.Rounded.RestartAlt, "뽀모도로 초기화", tint = muted)
                             }
                             val action = if (timer.running) "일시정지" else if (timer.finished) "다시 시작"
+                                else if (timer.preparing) "준비 계속"
                                 else if (timer.remainingMs == timer.durationMs) "${timer.phase.label} 시작" else "계속"
                             FilledIconButton(onClick = onToggle, modifier = Modifier.size((52 * scale).dp).testTag("pomodoro_toggle"),
                                 colors = IconButtonDefaults.filledIconButtonColors(containerColor = foreground, contentColor = cardColor)) {

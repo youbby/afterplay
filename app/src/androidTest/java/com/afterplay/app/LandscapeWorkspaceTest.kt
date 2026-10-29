@@ -125,7 +125,7 @@ class LandscapeWorkspaceTest {
         try {
             rotate(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
             togglePomodoro()
-            compose.waitUntil(5_000) { app.pomodoro.state.value.remainingMs < 25 * 60_000L - 1_000 }
+            compose.waitUntil(15_000) { app.pomodoro.state.value.remainingMs < 25 * 60_000L - 1_000 }
             compose.activityRule.scenario.recreate()
             assertLandscapeLocked()
             assertTrue(app.pomodoro.state.value.running)
@@ -173,7 +173,7 @@ class LandscapeWorkspaceTest {
             assertTrue(compose.onNodeWithTag("sleep_timer_controls").fetchSemanticsNode().boundsInRoot.bottom <=
                 compose.onNodeWithText(title).fetchSemanticsNode().boundsInRoot.top)
             togglePomodoro()
-            compose.waitUntil(5_000) { app.pomodoro.state.value.remainingMs < 25 * 60_000L - 1_000 }
+            compose.waitUntil(15_000) { app.pomodoro.state.value.remainingMs < 25 * 60_000L - 1_000 }
             val screenshot = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
             try {
                 File(context.getExternalFilesDir(null), "landscape-preview.png").outputStream().use {
